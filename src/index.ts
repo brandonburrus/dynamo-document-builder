@@ -1,3 +1,2 @@
-export function helloWorld(): string {
-  return 'Hello, dynamo-document-builder!'
-}
+export * from './core'
+export * from './commands'

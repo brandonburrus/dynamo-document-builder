@@ -1,0 +1,44 @@
+import type { ConsumedCapacity, ReturnValue } from '@aws-sdk/client-dynamodb'
+import { PutCommand, type PutCommandInput } from '@aws-sdk/lib-dynamodb'
+import type { ResponseMetadata } from '@aws-sdk/types'
+import type { DynamoEntity, EntitySchema } from '@/core/entity'
+import { EntityCommand } from '@/commands/base-entity-command'
+import type { ZodObject } from 'zod/v4'
+
+export interface PutConfig<Schema extends ZodObject> {
+  item: EntitySchema<Schema>
+  returnValues?: ReturnValue
+  skipValidation?: boolean
+}
+
+export interface PutResult {
+  responseMetadata: ResponseMetadata
+  consumedCapacity?: ConsumedCapacity | undefined
+}
+
+export class Put<Schema extends ZodObject> extends EntityCommand<PutResult, Schema> {
+  constructor(private config: PutConfig<Schema>) {
+    super()
+  }
+
+  public async execute(entity: DynamoEntity<Schema>): Promise<PutResult> {
+    const baseData: EntitySchema<Schema> = this.config.skipValidation
+      ? this.config.item
+      : await entity.validateAsync(this.config.item)
+    const putItemInput: PutCommandInput = {
+      TableName: entity.table.tableName,
+      Item: {
+        ...baseData,
+        ...entity.buildPrimaryKey(baseData),
+      },
+    }
+    if (this.config.returnValues) {
+      putItemInput.ReturnValues = this.config.returnValues
+    }
+    const putResult = await entity.table.documentClient.send(new PutCommand(putItemInput))
+    return {
+      responseMetadata: putResult.$metadata,
+      consumedCapacity: putResult.ConsumedCapacity,
+    }
+  }
+}
