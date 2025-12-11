@@ -125,4 +125,76 @@ describe('delete command', () => {
       ReturnConsumedCapacity: 'TOTAL',
     })
   })
+
+  it('deletes an item with returnItemCollectionMetrics', async () => {
+    dynamoMock.on(DeleteCommand).resolves({})
+
+    const deleteCommand = new Delete({
+      key: {
+        id: '123',
+        timestamp: new Date('2000-01-01T00:00:00Z'),
+      },
+      returnItemCollectionMetrics: 'SIZE',
+    })
+
+    const result = await testEntity.send(deleteCommand)
+
+    expect(dynamoMock.calls()).toHaveLength(1)
+    expect(dynamoMock.call(0).args[0].input).toEqual({
+      TableName: 'TestTable',
+      Key: {
+        PK: 'TEST#123',
+        SK: '2000-01-01T00:00:00.000Z',
+      },
+      ReturnItemCollectionMetrics: 'SIZE',
+    })
+  })
+
+  it('deletes an item with returnValuesOnConditionCheckFailure', async () => {
+    dynamoMock.on(DeleteCommand).resolves({})
+
+    const deleteCommand = new Delete({
+      key: {
+        id: '123',
+        timestamp: new Date('2000-01-01T00:00:00Z'),
+      },
+      returnValuesOnConditionCheckFailure: 'ALL_OLD',
+    })
+
+    const result = await testEntity.send(deleteCommand)
+
+    expect(dynamoMock.calls()).toHaveLength(1)
+    expect(dynamoMock.call(0).args[0].input).toEqual({
+      TableName: 'TestTable',
+      Key: {
+        PK: 'TEST#123',
+        SK: '2000-01-01T00:00:00.000Z',
+      },
+      ReturnValuesOnConditionCheckFailure: 'ALL_OLD',
+    })
+  })
+
+  it('deletes an item with skipValidation and returns attributes', async () => {
+    dynamoMock.on(DeleteCommand).resolves({
+      Attributes: {
+        id: '123',
+        name: 'Test Item',
+        timestamp: '2000-01-01T00:00:00.000Z',
+      },
+    })
+
+    const deleteCommand = new Delete({
+      key: {
+        id: '123',
+        timestamp: new Date('2000-01-01T00:00:00Z'),
+      },
+      returnValues: 'ALL_OLD',
+      skipValidation: true,
+    })
+
+    const result = await testEntity.send(deleteCommand)
+
+    expect(dynamoMock.calls()).toHaveLength(1)
+    expect(result.oldItem).toBeUndefined()
+  })
 })

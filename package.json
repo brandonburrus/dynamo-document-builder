@@ -1,7 +1,7 @@
 {
   "name": "dynamo-document-builder",
   "version": "0.1.0",
-  "description": "Type-safe utilities designed to make working with DynamoDB easier ✨",
+  "description": "DynamoDB data modeling and validation made easy using TypeScript & Zod ✨",
   "main": "dist/index.js",
   "keywords": [
     "aws",
@@ -70,6 +70,7 @@
     "aws-sdk-client-mock": "^4.1.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.1.0",
+    "p-map": "^7.0.4",
     "rimraf": "^6.0.1",
     "sinon": "^20.0.0",
     "ts-node": "^10.9.2",

@@ -23,8 +23,8 @@ export interface ConditionalPutConfig<Schema extends ZodObject> {
   skipValidation?: boolean
 }
 
-export interface ConditionalPutResult<Schema extends ZodObject> {
-  oldItem?: EntitySchema<Schema> | undefined
+export type ConditionalPutResult<Schema extends ZodObject> = {
+  returnItem: EntitySchema<Schema> | undefined
   responseMetadata?: ResponseMetadata
   consumedCapacity?: ConsumedCapacity | undefined
 }
@@ -38,16 +38,18 @@ export class ConditionalPut<Schema extends ZodObject> extends EntityCommand<
   }
 
   public async execute(entity: DynamoEntity<Schema>): Promise<ConditionalPutResult<Schema>> {
-    const baseData: EntitySchema<Schema> = this.config.skipValidation
+    const encodedData = this.config.skipValidation
       ? this.config.item
-      : await entity.validateAsync(this.config.item)
+      : await entity.encodeAsync(this.config.item)
+    const { conditionExpression, attributeExpressionMap } = parseCondition(this.config.condition)
     const putCommandInput: PutCommandInput = {
       TableName: entity.table.tableName,
       Item: {
-        ...baseData,
-        ...entity.buildPrimaryKey(baseData),
+        ...encodedData,
+        ...entity.buildPrimaryKey(this.config.item),
       },
-      ...parseCondition(this.config.condition),
+      ConditionExpression: conditionExpression,
+      ...attributeExpressionMap.toDynamoAttributeExpression(),
     }
     if (this.config.returnValues) {
       putCommandInput.ReturnValues = this.config.returnValues
@@ -64,12 +66,16 @@ export class ConditionalPut<Schema extends ZodObject> extends EntityCommand<
     }
     const putItem = new PutCommand(putCommandInput)
     const putResult = await entity.table.documentClient.send(putItem)
+
     let oldItem: EntitySchema<Schema> | undefined
-    if (putResult.Attributes && !this.config.skipValidation) {
-      oldItem = await entity.validateAsync(putResult.Attributes)
+    if (putResult.Attributes) {
+      oldItem = this.config.skipValidation
+        ? (putResult.Attributes as EntitySchema<Schema>)
+        : await entity.validateAsync(putResult.Attributes)
     }
+
     return {
-      oldItem,
+      returnItem: oldItem,
       responseMetadata: putResult.$metadata,
       consumedCapacity: putResult.ConsumedCapacity,
     }

@@ -11,7 +11,17 @@ export default defineConfig({
       enabled: true,
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      exclude: ['node_modules/**', 'dist/**', 'tests/**', '**/*.config.{js,ts}', '**/*.d.ts'],
+      exclude: [
+        'node_modules/**',
+        'dist/**',
+        'tests/**',
+        '**/*.config.ts',
+        '**/*.d.ts',
+        '**/index.ts',
+        '**/*-types.ts',
+        // Abstract class - not a part of coverage
+        'src/commands/base-entity-command.ts',
+      ],
     },
   },
   resolve: {

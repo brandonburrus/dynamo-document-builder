@@ -7,7 +7,7 @@ import type { ZodObject } from 'zod/v4'
 
 export interface PartialGetConfig<Schema extends ZodObject> {
   key: Partial<EntitySchema<Schema>>
-  projection: string[]
+  projection: string[] // TODO: Handle projection validation
   consistentRead?: boolean
   skipValidation?: boolean
 }
@@ -27,10 +27,6 @@ export class PartialGet<Schema extends ZodObject> extends EntityCommand<
   }
 
   public async execute(entity: DynamoEntity<Schema>): Promise<PartialGetResult<Schema>> {
-    if (!this.config.projection || this.config.projection.length === 0) {
-      throw new Error('PartialGet requires at least one field in the projection parameter')
-    }
-
     const getItem = new GetCommand({
       TableName: entity.table.tableName,
       Key: entity.buildPrimaryKey(this.config.key),

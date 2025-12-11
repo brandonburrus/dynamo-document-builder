@@ -71,12 +71,12 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
-      ConditionExpression: '#name = :name',
+      ConditionExpression: '#name = :v1',
       ExpressionAttributeNames: {
         '#name': 'name',
       },
       ExpressionAttributeValues: {
-        ':name': 'Test Item',
+        ':v1': 'Test Item',
       },
     })
   })
@@ -98,12 +98,12 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
-      ConditionExpression: '#name = :name',
+      ConditionExpression: '#name = :v1',
       ExpressionAttributeNames: {
         '#name': 'name',
       },
       ExpressionAttributeValues: {
-        ':name': 'Test Item',
+        ':v1': 'Test Item',
       },
     })
   })
@@ -126,14 +126,14 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
-      ConditionExpression: '#name = :name AND #id = :id',
+      ConditionExpression: '#name = :v1 AND #id = :v2',
       ExpressionAttributeNames: {
         '#name': 'name',
         '#id': 'id',
       },
       ExpressionAttributeValues: {
-        ':name': 'Test Item',
-        ':id': '123',
+        ':v1': 'Test Item',
+        ':v2': '123',
       },
     })
   })
@@ -153,7 +153,7 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
-      ConditionExpression: '#name = :name AND NOT (#id = :id)',
+      ConditionExpression: '#name = :v1 AND NOT (#id = :v2)',
     })
   })
 
@@ -172,7 +172,7 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
-      ConditionExpression: '#name = :name OR #name = :name1',
+      ConditionExpression: '#name = :v1 OR #name = :v2',
     })
   })
 
@@ -191,7 +191,7 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
-      ConditionExpression: 'NOT (#name = :name)',
+      ConditionExpression: 'NOT (#name = :v1)',
     })
   })
 
@@ -212,13 +212,13 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
-      ConditionExpression: '#id BETWEEN :id AND :id1',
+      ConditionExpression: '#id BETWEEN :v1 AND :v2',
       ExpressionAttributeNames: {
         '#id': 'id',
       },
       ExpressionAttributeValues: {
-        ':id': '100',
-        ':id1': '200',
+        ':v1': '100',
+        ':v2': '200',
       },
     })
   })
@@ -240,14 +240,14 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
-      ConditionExpression: '#name IN (:name, :name1, :name2)',
+      ConditionExpression: '#name IN (:v1, :v2, :v3)',
       ExpressionAttributeNames: {
         '#name': 'name',
       },
       ExpressionAttributeValues: {
-        ':name': 'Item A',
-        ':name1': 'Item B',
-        ':name2': 'Item C',
+        ':v1': 'Item A',
+        ':v2': 'Item B',
+        ':v3': 'Item C',
       },
     })
   })
@@ -293,12 +293,12 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
-      ConditionExpression: 'begins_with(#name, :name)',
+      ConditionExpression: 'begins_with(#name, :v1)',
       ExpressionAttributeNames: {
         '#name': 'name',
       },
       ExpressionAttributeValues: {
-        ':name': 'Test',
+        ':v1': 'Test',
       },
     })
   })
@@ -320,12 +320,12 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
-      ConditionExpression: 'contains(#name, :name)',
+      ConditionExpression: 'contains(#name, :v1)',
       ExpressionAttributeNames: {
         '#name': 'name',
       },
       ExpressionAttributeValues: {
-        ':name': 'Item',
+        ':v1': 'Item',
       },
     })
   })
@@ -347,12 +347,12 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
-      ConditionExpression: 'attribute_type(#name, :name)',
+      ConditionExpression: 'attribute_type(#name, :v1)',
       ExpressionAttributeNames: {
         '#name': 'name',
       },
       ExpressionAttributeValues: {
-        ':name': 'S',
+        ':v1': 'S',
       },
     })
   })
@@ -401,15 +401,15 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
-      ConditionExpression: '#id > :id AND #name < :name AND #id <> :id1',
+      ConditionExpression: '#id > :v1 AND #name < :v2 AND #id <> :v3',
       ExpressionAttributeNames: {
         '#name': 'name',
         '#id': 'id',
       },
       ExpressionAttributeValues: {
-        ':name': 'ZZZ',
-        ':id': '100',
-        ':id1': '999',
+        ':v1': '100',
+        ':v2': 'ZZZ',
+        ':v3': '999',
       },
     })
   })
@@ -432,16 +432,16 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
-      ConditionExpression: '(#id = :id AND #name = :name) OR (#id = :id1 AND #name = :name1)',
+      ConditionExpression: '(#id = :v1 AND #name = :v2) OR (#id = :v3 AND #name = :v4)',
       ExpressionAttributeNames: {
         '#name': 'name',
         '#id': 'id',
       },
       ExpressionAttributeValues: {
-        ':name': 'Test',
-        ':id': '100',
-        ':name1': 'Other',
-        ':id1': '200',
+        ':v1': '100',
+        ':v2': 'Test',
+        ':v3': '200',
+        ':v4': 'Other',
       },
     })
   })
@@ -461,14 +461,14 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
-      ConditionExpression: '#name = :name AND #id > :id',
+      ConditionExpression: '#name = :v1 AND #id > :v2',
       ExpressionAttributeNames: {
         '#name': 'name',
         '#id': 'id',
       },
       ExpressionAttributeValues: {
-        ':name': 'Test',
-        ':id': '100',
+        ':v1': 'Test',
+        ':v2': '100',
       },
     })
   })
@@ -490,14 +490,14 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
-      ConditionExpression: '#user.#profile.#email = :email',
+      ConditionExpression: '#user.#profile.#email = :v1',
       ExpressionAttributeNames: {
         '#user': 'user',
         '#profile': 'profile',
         '#email': 'email',
       },
       ExpressionAttributeValues: {
-        ':email': 'test@example.com',
+        ':v1': 'test@example.com',
       },
     })
   })
@@ -517,14 +517,13 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
-      ConditionExpression: '#id = :id AND #name = :name',
+      ConditionExpression: '#id = :v1 AND #name = :v1',
       ExpressionAttributeNames: {
         '#id': 'id',
         '#name': 'name',
       },
       ExpressionAttributeValues: {
-        ':id': 'active',
-        ':name': 'active',
+        ':v1': 'active',
       },
     })
   })
@@ -547,16 +546,16 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
-      ConditionExpression: '#id = :id AND (#name = :name OR #name = :name1 OR #name = :name2)',
+      ConditionExpression: '#id = :v1 AND (#name = :v2 OR #name = :v3 OR #name = :v4)',
       ExpressionAttributeNames: {
         '#id': 'id',
         '#name': 'name',
       },
       ExpressionAttributeValues: {
-        ':id': '123',
-        ':name': 'A',
-        ':name1': 'B',
-        ':name2': 'C',
+        ':v1': '123',
+        ':v2': 'A',
+        ':v3': 'B',
+        ':v4': 'C',
       },
     })
   })
@@ -580,17 +579,17 @@ describe('condition parser', () => {
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
       ConditionExpression:
-        '(#id = :id AND #name = :name AND #id > :id1) OR (#id = :id2 AND #name = :name1)',
+        '(#id = :v1 AND #name = :v2 AND #id > :v3) OR (#id = :v4 AND #name = :v5)',
       ExpressionAttributeNames: {
         '#id': 'id',
         '#name': 'name',
       },
       ExpressionAttributeValues: {
-        ':id': '100',
-        ':name': 'Alice',
-        ':id1': '50',
-        ':id2': '200',
-        ':name1': 'Bob',
+        ':v1': '100',
+        ':v2': 'Alice',
+        ':v3': '50',
+        ':v4': '200',
+        ':v5': 'Bob',
       },
     })
   })
@@ -610,14 +609,14 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
-      ConditionExpression: 'NOT (#id = :id OR #name = :name)',
+      ConditionExpression: 'NOT (#id = :v1 OR #name = :v2)',
       ExpressionAttributeNames: {
         '#id': 'id',
         '#name': 'name',
       },
       ExpressionAttributeValues: {
-        ':id': '100',
-        ':name': 'Test',
+        ':v1': '100',
+        ':v2': 'Test',
       },
     })
   })
@@ -637,14 +636,14 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
-      ConditionExpression: 'NOT (#id = :id) AND NOT (#name = :name)',
+      ConditionExpression: 'NOT (#id = :v1) AND NOT (#name = :v2)',
       ExpressionAttributeNames: {
         '#id': 'id',
         '#name': 'name',
       },
       ExpressionAttributeValues: {
-        ':id': '100',
-        ':name': 'Test',
+        ':v1': '100',
+        ':v2': 'Test',
       },
     })
   })
@@ -693,14 +692,14 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
-      ConditionExpression: '#name IN (:name, :name1, size(#otherField))',
+      ConditionExpression: '#name IN (:v1, :v2, size(#otherField))',
       ExpressionAttributeNames: {
         '#name': 'name',
         '#otherField': 'otherField',
       },
       ExpressionAttributeValues: {
-        ':name': 'value1',
-        ':name1': 'value2',
+        ':v1': 'value1',
+        ':v2': 'value2',
       },
     })
   })
@@ -720,15 +719,15 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
-      ConditionExpression: '#id > :id AND #id < :id1 AND #name = :name',
+      ConditionExpression: '#id > :v1 AND #id < :v2 AND #name = :v3',
       ExpressionAttributeNames: {
         '#id': 'id',
         '#name': 'name',
       },
       ExpressionAttributeValues: {
-        ':id': 100,
-        ':id1': 200,
-        ':name': 42,
+        ':v1': 100,
+        ':v2': 200,
+        ':v3': 42,
       },
     })
   })
@@ -748,14 +747,14 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
-      ConditionExpression: '#id = :id AND #name = :name',
+      ConditionExpression: '#id = :v1 AND #name = :v2',
       ExpressionAttributeNames: {
         '#id': 'id',
         '#name': 'name',
       },
       ExpressionAttributeValues: {
-        ':id': true,
-        ':name': false,
+        ':v1': true,
+        ':v2': false,
       },
     })
   })
@@ -777,12 +776,12 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
-      ConditionExpression: '#name = :name',
+      ConditionExpression: '#name = :v1',
       ExpressionAttributeNames: {
         '#name': 'name',
       },
       ExpressionAttributeValues: {
-        ':name': null,
+        ':v1': null,
       },
     })
   })
@@ -802,14 +801,14 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
-      ConditionExpression: '#id > :id AND #id < :id1 AND #id <> :id2',
+      ConditionExpression: '#id > :v1 AND #id < :v2 AND #id <> :v3',
       ExpressionAttributeNames: {
         '#id': 'id',
       },
       ExpressionAttributeValues: {
-        ':id': '100',
-        ':id1': '999',
-        ':id2': '500',
+        ':v1': '100',
+        ':v2': '999',
+        ':v3': '500',
       },
     })
   })
@@ -836,20 +835,20 @@ describe('condition parser', () => {
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
       ConditionExpression:
-        'attribute_exists(#id) AND begins_with(#name, :name) AND (#id BETWEEN :id AND :id1 OR #id IN (:id2, :id3, :id4)) AND NOT (contains(#name, :name1)) AND attribute_type(#id, :id5)',
+        'attribute_exists(#id) AND begins_with(#name, :v1) AND (#id BETWEEN :v2 AND :v3 OR #id IN (:v4, :v5, :v6)) AND NOT (contains(#name, :v7)) AND attribute_type(#id, :v8)',
       ExpressionAttributeNames: {
         '#id': 'id',
         '#name': 'name',
       },
       ExpressionAttributeValues: {
-        ':name': 'user_',
-        ':id': '100',
-        ':id1': '200',
-        ':id2': '999',
-        ':id3': '888',
-        ':id4': '777',
-        ':name1': 'deleted',
-        ':id5': 'S',
+        ':v1': 'user_',
+        ':v2': '100',
+        ':v3': '200',
+        ':v4': '999',
+        ':v5': '888',
+        ':v6': '777',
+        ':v7': 'deleted',
+        ':v8': 'S',
       },
     })
   })
@@ -874,9 +873,9 @@ describe('condition parser', () => {
     expect(dynamoMock.calls()).toHaveLength(1)
     const input = dynamoMock.call(0).args[0].input as DeleteCommandInput
     expect(input).toHaveProperty('ConditionExpression')
-    expect(input.ConditionExpression).toContain('#id > :id')
-    expect(input.ConditionExpression).toContain('#name = :name')
-    expect(input.ConditionExpression).toContain('#timestamp < :timestamp')
+    expect(input.ConditionExpression).toContain('#id > :v1')
+    expect(input.ConditionExpression).toContain('#name = :v2')
+    expect(input.ConditionExpression).toContain('#timestamp < :v3')
     expect(input.ConditionExpression).toContain(' AND ')
   })
 
@@ -895,15 +894,15 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
-      ConditionExpression: '#id = :id AND #name = :name AND #id > :id1',
+      ConditionExpression: '#id = :v1 AND #name = :v2 AND #id > :v3',
       ExpressionAttributeNames: {
         '#id': 'id',
         '#name': 'name',
       },
       ExpressionAttributeValues: {
-        ':id': '100',
-        ':name': 'Test',
-        ':id1': '50',
+        ':v1': '100',
+        ':v2': 'Test',
+        ':v3': '50',
       },
     })
   })
@@ -927,18 +926,18 @@ describe('condition parser', () => {
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
       ConditionExpression:
-        '(#id = :id AND (#name = :name OR #name = :name1)) OR (#id = :id1 AND (#name = :name2 OR #name = :name3))',
+        '(#id = :v1 AND (#name = :v2 OR #name = :v3)) OR (#id = :v4 AND (#name = :v5 OR #name = :v6))',
       ExpressionAttributeNames: {
         '#id': 'id',
         '#name': 'name',
       },
       ExpressionAttributeValues: {
-        ':id': '1',
-        ':name': 'A',
-        ':name1': 'B',
-        ':id1': '2',
-        ':name2': 'C',
-        ':name3': 'D',
+        ':v1': '1',
+        ':v2': 'A',
+        ':v3': 'B',
+        ':v4': '2',
+        ':v5': 'C',
+        ':v6': 'D',
       },
     })
   })
@@ -958,13 +957,13 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
-      ConditionExpression: '#name > size(#name) AND #id < :id',
+      ConditionExpression: '#name > size(#name) AND #id < :v1',
       ExpressionAttributeNames: {
         '#name': 'name',
         '#id': 'id',
       },
       ExpressionAttributeValues: {
-        ':id': 10,
+        ':v1': 10,
       },
     })
   })
@@ -1014,14 +1013,14 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     const input = dynamoMock.call(0).args[0].input as DeleteCommandInput
-    expect(input.ConditionExpression).toContain('#id = :id')
-    expect(input.ConditionExpression).toContain('#id <> :id1')
-    expect(input.ConditionExpression).toContain('#id < :id2')
-    expect(input.ConditionExpression).toContain('#id > :id3')
-    expect(input.ExpressionAttributeValues?.[':id']).toBe('A')
-    expect(input.ExpressionAttributeValues?.[':id1']).toBe('B')
-    expect(input.ExpressionAttributeValues?.[':id2']).toBe('C')
-    expect(input.ExpressionAttributeValues?.[':id3']).toBe('E')
+    expect(input.ConditionExpression).toContain('#id = :v1')
+    expect(input.ConditionExpression).toContain('#id <> :v2')
+    expect(input.ConditionExpression).toContain('#id < :v3')
+    expect(input.ConditionExpression).toContain('#id > :v4')
+    expect(input.ExpressionAttributeValues?.[':v1']).toBe('A')
+    expect(input.ExpressionAttributeValues?.[':v2']).toBe('B')
+    expect(input.ExpressionAttributeValues?.[':v3']).toBe('C')
+    expect(input.ExpressionAttributeValues?.[':v4']).toBe('E')
   })
 
   it('handles empty string values', async () => {
@@ -1041,12 +1040,12 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
-      ConditionExpression: '#name = :name',
+      ConditionExpression: '#name = :v1',
       ExpressionAttributeNames: {
         '#name': 'name',
       },
       ExpressionAttributeValues: {
-        ':name': '',
+        ':v1': '',
       },
     })
   })
@@ -1068,12 +1067,12 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
-      ConditionExpression: '#name = :name',
+      ConditionExpression: '#name = :v1',
       ExpressionAttributeNames: {
         '#name': 'name',
       },
       ExpressionAttributeValues: {
-        ':name': ['tag1', 'tag2', 'tag3'],
+        ':v1': ['tag1', 'tag2', 'tag3'],
       },
     })
   })
@@ -1095,12 +1094,12 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
-      ConditionExpression: '#name = :name',
+      ConditionExpression: '#name = :v1',
       ExpressionAttributeNames: {
         '#name': 'name',
       },
       ExpressionAttributeValues: {
-        ':name': { nested: 'value', count: 42 },
+        ':v1': { nested: 'value', count: 42 },
       },
     })
   })
@@ -1120,16 +1119,16 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
-      ConditionExpression: '#id BETWEEN :id AND :id1 AND #name BETWEEN :name AND :name1',
+      ConditionExpression: '#id BETWEEN :v1 AND :v2 AND #name BETWEEN :v3 AND :v4',
       ExpressionAttributeNames: {
         '#id': 'id',
         '#name': 'name',
       },
       ExpressionAttributeValues: {
-        ':id': '1',
-        ':id1': '100',
-        ':name': 'A',
-        ':name1': 'Z',
+        ':v1': '1',
+        ':v2': '100',
+        ':v3': 'A',
+        ':v4': 'Z',
       },
     })
   })
@@ -1149,16 +1148,14 @@ describe('condition parser', () => {
 
     expect(dynamoMock.calls()).toHaveLength(1)
     expect(dynamoMock.call(0).args[0].input).toMatchObject({
-      ConditionExpression: '#id BETWEEN :id AND :id1 AND #name BETWEEN :name AND :name1',
+      ConditionExpression: '#id BETWEEN :v1 AND :v2 AND #name BETWEEN :v1 AND :v2',
       ExpressionAttributeNames: {
         '#id': 'id',
         '#name': 'name',
       },
       ExpressionAttributeValues: {
-        ':id': '100',
-        ':id1': '200',
-        ':name': '100',
-        ':name1': '200',
+        ':v1': '100',
+        ':v2': '200',
       },
     })
   })

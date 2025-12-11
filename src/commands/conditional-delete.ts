@@ -38,10 +38,12 @@ export class ConditionalDelete<Schema extends ZodObject> extends EntityCommand<
   }
 
   public async execute(entity: DynamoEntity<Schema>): Promise<ConditionalDeleteResult<Schema>> {
+    const { conditionExpression, attributeExpressionMap } = parseCondition(this.config.condition)
     const deleteCommandInput: DeleteCommandInput = {
       TableName: entity.table.tableName,
       Key: entity.buildPrimaryKey(this.config.key),
-      ...parseCondition(this.config.condition),
+      ConditionExpression: conditionExpression,
+      ...attributeExpressionMap.toDynamoAttributeExpression(),
     }
     if (this.config.returnValues) {
       deleteCommandInput.ReturnValues = this.config.returnValues

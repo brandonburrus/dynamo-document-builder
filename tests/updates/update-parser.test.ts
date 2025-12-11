@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseUpdate, InvalidDynamoDBUpdateExpressionError } from '@/updates/update-parser'
+import { parseUpdate, InvalidUpdateDocumentBuilderError } from '@/updates/update-parser'
 import { add } from '@/updates/add'
 import { subtract } from '@/updates/subtract'
 import { append } from '@/updates/append'
@@ -8,6 +8,7 @@ import { addToSet } from '@/updates/add-to-set'
 import { removeFromSet } from '@/updates/delete'
 import { remove } from '@/updates/remove'
 import { ref } from '@/updates/ref'
+import { $add, $set } from '@/updates/update-symbols'
 
 describe('parseUpdate', () => {
   describe('SET operations', () => {
@@ -17,14 +18,15 @@ describe('parseUpdate', () => {
         age: 30,
       })
 
-      expect(result.UpdateExpression).toBe('SET #name = :name, #age = :age')
-      expect(result.ExpressionAttributeNames).toEqual({
+      expect(result.updateExpression).toBe('SET #name = :v1, #age = :v2')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#name': 'name',
         '#age': 'age',
       })
-      expect(result.ExpressionAttributeValues).toEqual({
-        ':name': 'John',
-        ':age': 30,
+      expect(expression.ExpressionAttributeValues).toEqual({
+        ':v1': 'John',
+        ':v2': 30,
       })
     })
 
@@ -34,14 +36,15 @@ describe('parseUpdate', () => {
         deleted: false,
       })
 
-      expect(result.UpdateExpression).toBe('SET #active = :active, #deleted = :deleted')
-      expect(result.ExpressionAttributeNames).toEqual({
+      expect(result.updateExpression).toBe('SET #active = :v1, #deleted = :v2')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#active': 'active',
         '#deleted': 'deleted',
       })
-      expect(result.ExpressionAttributeValues).toEqual({
-        ':active': true,
-        ':deleted': false,
+      expect(expression.ExpressionAttributeValues).toEqual({
+        ':v1': true,
+        ':v2': false,
       })
     })
 
@@ -50,12 +53,13 @@ describe('parseUpdate', () => {
         data: null,
       })
 
-      expect(result.UpdateExpression).toBe('SET #data = :data')
-      expect(result.ExpressionAttributeNames).toEqual({
+      expect(result.updateExpression).toBe('SET #data = :v1')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#data': 'data',
       })
-      expect(result.ExpressionAttributeValues).toEqual({
-        ':data': null,
+      expect(expression.ExpressionAttributeValues).toEqual({
+        ':v1': null,
       })
     })
 
@@ -64,12 +68,13 @@ describe('parseUpdate', () => {
         tags: ['tag1', 'tag2'],
       })
 
-      expect(result.UpdateExpression).toBe('SET #tags = :tags')
-      expect(result.ExpressionAttributeNames).toEqual({
+      expect(result.updateExpression).toBe('SET #tags = :v1')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#tags': 'tags',
       })
-      expect(result.ExpressionAttributeValues).toEqual({
-        ':tags': ['tag1', 'tag2'],
+      expect(expression.ExpressionAttributeValues).toEqual({
+        ':v1': ['tag1', 'tag2'],
       })
     })
 
@@ -78,12 +83,13 @@ describe('parseUpdate', () => {
         metadata: { key: 'value' },
       })
 
-      expect(result.UpdateExpression).toBe('SET #metadata = :metadata')
-      expect(result.ExpressionAttributeNames).toEqual({
+      expect(result.updateExpression).toBe('SET #metadata = :v1')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#metadata': 'metadata',
       })
-      expect(result.ExpressionAttributeValues).toEqual({
-        ':metadata': { key: 'value' },
+      expect(expression.ExpressionAttributeValues).toEqual({
+        ':v1': { key: 'value' },
       })
     })
 
@@ -92,12 +98,13 @@ describe('parseUpdate', () => {
         count: add(5),
       })
 
-      expect(result.UpdateExpression).toBe('SET #count = #count + :count')
-      expect(result.ExpressionAttributeNames).toEqual({
+      expect(result.updateExpression).toBe('SET #count = #count + :v1')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#count': 'count',
       })
-      expect(result.ExpressionAttributeValues).toEqual({
-        ':count': 5,
+      expect(expression.ExpressionAttributeValues).toEqual({
+        ':v1': 5,
       })
     })
 
@@ -106,12 +113,13 @@ describe('parseUpdate', () => {
         balance: subtract(100),
       })
 
-      expect(result.UpdateExpression).toBe('SET #balance = #balance - :balance')
-      expect(result.ExpressionAttributeNames).toEqual({
+      expect(result.updateExpression).toBe('SET #balance = #balance - :v1')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#balance': 'balance',
       })
-      expect(result.ExpressionAttributeValues).toEqual({
-        ':balance': 100,
+      expect(expression.ExpressionAttributeValues).toEqual({
+        ':v1': 100,
       })
     })
 
@@ -120,12 +128,13 @@ describe('parseUpdate', () => {
         items: append(['item1', 'item2']),
       })
 
-      expect(result.UpdateExpression).toBe('SET #items = list_append(#items, :items)')
-      expect(result.ExpressionAttributeNames).toEqual({
+      expect(result.updateExpression).toBe('SET #items = list_append(#items, :v1)')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#items': 'items',
       })
-      expect(result.ExpressionAttributeValues).toEqual({
-        ':items': ['item1', 'item2'],
+      expect(expression.ExpressionAttributeValues).toEqual({
+        ':v1': ['item1', 'item2'],
       })
     })
 
@@ -134,12 +143,13 @@ describe('parseUpdate', () => {
         items: prepend(['item1', 'item2']),
       })
 
-      expect(result.UpdateExpression).toBe('SET #items = list_append(:items, #items)')
-      expect(result.ExpressionAttributeNames).toEqual({
+      expect(result.updateExpression).toBe('SET #items = list_append(:v1, #items)')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#items': 'items',
       })
-      expect(result.ExpressionAttributeValues).toEqual({
-        ':items': ['item1', 'item2'],
+      expect(expression.ExpressionAttributeValues).toEqual({
+        ':v1': ['item1', 'item2'],
       })
     })
 
@@ -148,14 +158,15 @@ describe('parseUpdate', () => {
         'user.profile.email': 'test@example.com',
       })
 
-      expect(result.UpdateExpression).toBe('SET #user.#profile.#email = :user_profile_email')
-      expect(result.ExpressionAttributeNames).toEqual({
+      expect(result.updateExpression).toBe('SET #user.#profile.#email = :v1')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#user': 'user',
         '#profile': 'profile',
         '#email': 'email',
       })
-      expect(result.ExpressionAttributeValues).toEqual({
-        ':user_profile_email': 'test@example.com',
+      expect(expression.ExpressionAttributeValues).toEqual({
+        ':v1': 'test@example.com',
       })
     })
 
@@ -164,12 +175,13 @@ describe('parseUpdate', () => {
         'items[0]': 'first-item',
       })
 
-      expect(result.UpdateExpression).toBe('SET #items[0] = :items_0')
-      expect(result.ExpressionAttributeNames).toEqual({
+      expect(result.updateExpression).toBe('SET #items[0] = :v1')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#items': 'items',
       })
-      expect(result.ExpressionAttributeValues).toEqual({
-        ':items_0': 'first-item',
+      expect(expression.ExpressionAttributeValues).toEqual({
+        ':v1': 'first-item',
       })
     })
 
@@ -178,12 +190,13 @@ describe('parseUpdate', () => {
         newName: ref('oldName'),
       })
 
-      expect(result.UpdateExpression).toBe('SET #newName = #oldName')
-      expect(result.ExpressionAttributeNames).toEqual({
+      expect(result.updateExpression).toBe('SET #newName = #oldName')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#newName': 'newName',
         '#oldName': 'oldName',
       })
-      expect(result.ExpressionAttributeValues).toBeUndefined()
+      expect(expression.ExpressionAttributeValues).toBeUndefined()
     })
 
     it('should handle SET with reference with default value', () => {
@@ -191,15 +204,14 @@ describe('parseUpdate', () => {
         counter: ref('oldCounter', 0),
       })
 
-      expect(result.UpdateExpression).toBe(
-        'SET #counter = if_not_exists(#oldCounter, :counter_default)',
-      )
-      expect(result.ExpressionAttributeNames).toEqual({
+      expect(result.updateExpression).toBe('SET #counter = if_not_exists(#oldCounter, :v1)')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#counter': 'counter',
         '#oldCounter': 'oldCounter',
       })
-      expect(result.ExpressionAttributeValues).toEqual({
-        ':counter_default': 0,
+      expect(expression.ExpressionAttributeValues).toEqual({
+        ':v1': 0,
       })
     })
 
@@ -208,12 +220,13 @@ describe('parseUpdate', () => {
         count: add(ref('increment')),
       })
 
-      expect(result.UpdateExpression).toBe('SET #count = #count + #increment')
-      expect(result.ExpressionAttributeNames).toEqual({
+      expect(result.updateExpression).toBe('SET #count = #count + #increment')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#count': 'count',
         '#increment': 'increment',
       })
-      expect(result.ExpressionAttributeValues).toBeUndefined()
+      expect(expression.ExpressionAttributeValues).toBeUndefined()
     })
 
     it('should handle SET with subtract expression using reference', () => {
@@ -221,12 +234,13 @@ describe('parseUpdate', () => {
         balance: subtract(ref('deduction')),
       })
 
-      expect(result.UpdateExpression).toBe('SET #balance = #balance - #deduction')
-      expect(result.ExpressionAttributeNames).toEqual({
+      expect(result.updateExpression).toBe('SET #balance = #balance - #deduction')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#balance': 'balance',
         '#deduction': 'deduction',
       })
-      expect(result.ExpressionAttributeValues).toBeUndefined()
+      expect(expression.ExpressionAttributeValues).toBeUndefined()
     })
 
     it('should handle SET with append expression using reference', () => {
@@ -234,12 +248,13 @@ describe('parseUpdate', () => {
         items: append(ref('newItems')),
       })
 
-      expect(result.UpdateExpression).toBe('SET #items = list_append(#items, #newItems)')
-      expect(result.ExpressionAttributeNames).toEqual({
+      expect(result.updateExpression).toBe('SET #items = list_append(#items, #newItems)')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#items': 'items',
         '#newItems': 'newItems',
       })
-      expect(result.ExpressionAttributeValues).toBeUndefined()
+      expect(expression.ExpressionAttributeValues).toBeUndefined()
     })
 
     it('should handle SET with prepend expression using reference', () => {
@@ -247,12 +262,13 @@ describe('parseUpdate', () => {
         items: prepend(ref('newItems')),
       })
 
-      expect(result.UpdateExpression).toBe('SET #items = list_append(#newItems, #items)')
-      expect(result.ExpressionAttributeNames).toEqual({
+      expect(result.updateExpression).toBe('SET #items = list_append(#newItems, #items)')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#items': 'items',
         '#newItems': 'newItems',
       })
-      expect(result.ExpressionAttributeValues).toBeUndefined()
+      expect(expression.ExpressionAttributeValues).toBeUndefined()
     })
   })
 
@@ -262,11 +278,12 @@ describe('parseUpdate', () => {
         oldField: remove(),
       })
 
-      expect(result.UpdateExpression).toBe('REMOVE #oldField')
-      expect(result.ExpressionAttributeNames).toEqual({
+      expect(result.updateExpression).toBe('REMOVE #oldField')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#oldField': 'oldField',
       })
-      expect(result.ExpressionAttributeValues).toBeUndefined()
+      expect(expression.ExpressionAttributeValues).toBeUndefined()
     })
 
     it('should handle REMOVE multiple attributes', () => {
@@ -276,13 +293,14 @@ describe('parseUpdate', () => {
         field3: remove(),
       })
 
-      expect(result.UpdateExpression).toBe('REMOVE #field1, #field2, #field3')
-      expect(result.ExpressionAttributeNames).toEqual({
+      expect(result.updateExpression).toBe('REMOVE #field1, #field2, #field3')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#field1': 'field1',
         '#field2': 'field2',
         '#field3': 'field3',
       })
-      expect(result.ExpressionAttributeValues).toBeUndefined()
+      expect(expression.ExpressionAttributeValues).toBeUndefined()
     })
 
     it('should handle REMOVE with nested attribute paths', () => {
@@ -290,13 +308,14 @@ describe('parseUpdate', () => {
         'user.profile.email': remove(),
       })
 
-      expect(result.UpdateExpression).toBe('REMOVE #user.#profile.#email')
-      expect(result.ExpressionAttributeNames).toEqual({
+      expect(result.updateExpression).toBe('REMOVE #user.#profile.#email')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#user': 'user',
         '#profile': 'profile',
         '#email': 'email',
       })
-      expect(result.ExpressionAttributeValues).toBeUndefined()
+      expect(expression.ExpressionAttributeValues).toBeUndefined()
     })
 
     it('should handle REMOVE with array index notation', () => {
@@ -304,11 +323,12 @@ describe('parseUpdate', () => {
         'items[2]': remove(),
       })
 
-      expect(result.UpdateExpression).toBe('REMOVE #items[2]')
-      expect(result.ExpressionAttributeNames).toEqual({
+      expect(result.updateExpression).toBe('REMOVE #items[2]')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#items': 'items',
       })
-      expect(result.ExpressionAttributeValues).toBeUndefined()
+      expect(expression.ExpressionAttributeValues).toBeUndefined()
     })
   })
 
@@ -318,12 +338,13 @@ describe('parseUpdate', () => {
         tags: addToSet(['tag1', 'tag2']),
       })
 
-      expect(result.UpdateExpression).toBe('ADD #tags :tags')
-      expect(result.ExpressionAttributeNames).toEqual({
+      expect(result.updateExpression).toBe('ADD #tags :v1')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#tags': 'tags',
       })
-      expect(result.ExpressionAttributeValues).toEqual({
-        ':tags': ['tag1', 'tag2'],
+      expect(expression.ExpressionAttributeValues).toEqual({
+        ':v1': ['tag1', 'tag2'],
       })
     })
 
@@ -332,12 +353,13 @@ describe('parseUpdate', () => {
         tags: addToSet(ref('newTags')),
       })
 
-      expect(result.UpdateExpression).toBe('ADD #tags #newTags')
-      expect(result.ExpressionAttributeNames).toEqual({
+      expect(result.updateExpression).toBe('ADD #tags #newTags')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#tags': 'tags',
         '#newTags': 'newTags',
       })
-      expect(result.ExpressionAttributeValues).toBeUndefined()
+      expect(expression.ExpressionAttributeValues).toBeUndefined()
     })
 
     it('should handle ADD with multiple addToSet expressions', () => {
@@ -346,14 +368,15 @@ describe('parseUpdate', () => {
         categories: addToSet(['cat1']),
       })
 
-      expect(result.UpdateExpression).toBe('ADD #tags :tags, #categories :categories')
-      expect(result.ExpressionAttributeNames).toEqual({
+      expect(result.updateExpression).toBe('ADD #tags :v1, #categories :v2')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#tags': 'tags',
         '#categories': 'categories',
       })
-      expect(result.ExpressionAttributeValues).toEqual({
-        ':tags': ['tag1'],
-        ':categories': ['cat1'],
+      expect(expression.ExpressionAttributeValues).toEqual({
+        ':v1': ['tag1'],
+        ':v2': ['cat1'],
       })
     })
   })
@@ -364,12 +387,13 @@ describe('parseUpdate', () => {
         tags: removeFromSet(['tag1', 'tag2']),
       })
 
-      expect(result.UpdateExpression).toBe('DELETE #tags :tags')
-      expect(result.ExpressionAttributeNames).toEqual({
+      expect(result.updateExpression).toBe('DELETE #tags :v1')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#tags': 'tags',
       })
-      expect(result.ExpressionAttributeValues).toEqual({
-        ':tags': ['tag1', 'tag2'],
+      expect(expression.ExpressionAttributeValues).toEqual({
+        ':v1': ['tag1', 'tag2'],
       })
     })
 
@@ -378,12 +402,13 @@ describe('parseUpdate', () => {
         tags: removeFromSet(ref('tagsToRemove')),
       })
 
-      expect(result.UpdateExpression).toBe('DELETE #tags #tagsToRemove')
-      expect(result.ExpressionAttributeNames).toEqual({
+      expect(result.updateExpression).toBe('DELETE #tags #tagsToRemove')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#tags': 'tags',
         '#tagsToRemove': 'tagsToRemove',
       })
-      expect(result.ExpressionAttributeValues).toBeUndefined()
+      expect(expression.ExpressionAttributeValues).toBeUndefined()
     })
 
     it('should handle DELETE with multiple attributes', () => {
@@ -392,14 +417,15 @@ describe('parseUpdate', () => {
         categories: removeFromSet(['cat1']),
       })
 
-      expect(result.UpdateExpression).toBe('DELETE #tags :tags, #categories :categories')
-      expect(result.ExpressionAttributeNames).toEqual({
+      expect(result.updateExpression).toBe('DELETE #tags :v1, #categories :v2')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#tags': 'tags',
         '#categories': 'categories',
       })
-      expect(result.ExpressionAttributeValues).toEqual({
-        ':tags': ['tag1'],
-        ':categories': ['cat1'],
+      expect(expression.ExpressionAttributeValues).toEqual({
+        ':v1': ['tag1'],
+        ':v2': ['cat1'],
       })
     })
   })
@@ -411,13 +437,14 @@ describe('parseUpdate', () => {
         oldField: remove(),
       })
 
-      expect(result.UpdateExpression).toBe('SET #name = :name REMOVE #oldField')
-      expect(result.ExpressionAttributeNames).toEqual({
+      expect(result.updateExpression).toBe('SET #name = :v1 REMOVE #oldField')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#name': 'name',
         '#oldField': 'oldField',
       })
-      expect(result.ExpressionAttributeValues).toEqual({
-        ':name': 'John',
+      expect(expression.ExpressionAttributeValues).toEqual({
+        ':v1': 'John',
       })
     })
 
@@ -430,21 +457,22 @@ describe('parseUpdate', () => {
         categories: removeFromSet(['cat1']),
       })
 
-      expect(result.UpdateExpression).toBe(
-        'SET #name = :name, #count = #count + :count REMOVE #oldField ADD #tags :tags DELETE #categories :categories',
+      expect(result.updateExpression).toBe(
+        'SET #name = :v1, #count = #count + :v2 REMOVE #oldField ADD #tags :v3 DELETE #categories :v4',
       )
-      expect(result.ExpressionAttributeNames).toEqual({
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#name': 'name',
         '#count': 'count',
         '#oldField': 'oldField',
         '#tags': 'tags',
         '#categories': 'categories',
       })
-      expect(result.ExpressionAttributeValues).toEqual({
-        ':name': 'John',
-        ':count': 5,
-        ':tags': ['tag1'],
-        ':categories': ['cat1'],
+      expect(expression.ExpressionAttributeValues).toEqual({
+        ':v1': 'John',
+        ':v2': 5,
+        ':v3': ['tag1'],
+        ':v4': ['cat1'],
       })
     })
 
@@ -460,10 +488,11 @@ describe('parseUpdate', () => {
         cats2: removeFromSet(['cat2']),
       })
 
-      expect(result.UpdateExpression).toBe(
-        'SET #name = :name, #age = :age REMOVE #field1, #field2 ADD #tags1 :tags1, #tags2 :tags2 DELETE #cats1 :cats1, #cats2 :cats2',
+      expect(result.updateExpression).toBe(
+        'SET #name = :v1, #age = :v2 REMOVE #field1, #field2 ADD #tags1 :v3, #tags2 :v4 DELETE #cats1 :v5, #cats2 :v6',
       )
-      expect(result.ExpressionAttributeNames).toEqual({
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#name': 'name',
         '#age': 'age',
         '#field1': 'field1',
@@ -473,20 +502,20 @@ describe('parseUpdate', () => {
         '#cats1': 'cats1',
         '#cats2': 'cats2',
       })
-      expect(result.ExpressionAttributeValues).toEqual({
-        ':name': 'John',
-        ':age': 30,
-        ':tags1': ['tag1'],
-        ':tags2': ['tag2'],
-        ':cats1': ['cat1'],
-        ':cats2': ['cat2'],
+      expect(expression.ExpressionAttributeValues).toEqual({
+        ':v1': 'John',
+        ':v2': 30,
+        ':v3': ['tag1'],
+        ':v4': ['tag2'],
+        ':v5': ['cat1'],
+        ':v6': ['cat2'],
       })
     })
   })
 
   describe('Edge cases', () => {
     it('should throw error for empty update object', () => {
-      expect(() => parseUpdate({})).toThrow(InvalidDynamoDBUpdateExpressionError)
+      expect(() => parseUpdate({})).toThrow(InvalidUpdateDocumentBuilderError)
       expect(() => parseUpdate({})).toThrow('Update expression cannot be empty')
     })
 
@@ -496,14 +525,15 @@ describe('parseUpdate', () => {
         status: 'active',
       })
 
-      expect(result.UpdateExpression).toBe('SET #name = :name, #status = :status')
-      expect(result.ExpressionAttributeNames).toEqual({
+      expect(result.updateExpression).toBe('SET #name = :v1, #status = :v2')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#name': 'name',
         '#status': 'status',
       })
-      expect(result.ExpressionAttributeValues).toEqual({
-        ':name': 'John',
-        ':status': 'active',
+      expect(expression.ExpressionAttributeValues).toEqual({
+        ':v1': 'John',
+        ':v2': 'active',
       })
     })
 
@@ -512,12 +542,13 @@ describe('parseUpdate', () => {
         'user-name': 'John',
       })
 
-      expect(result.UpdateExpression).toBe('SET #user_name = :user_name')
-      expect(result.ExpressionAttributeNames).toEqual({
-        '#user_name': 'user-name',
+      expect(result.updateExpression).toBe('SET #user-name = :v1')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
+        '#user-name': 'user-name',
       })
-      expect(result.ExpressionAttributeValues).toEqual({
-        ':user_name': 'John',
+      expect(expression.ExpressionAttributeValues).toEqual({
+        ':v1': 'John',
       })
     })
 
@@ -526,12 +557,69 @@ describe('parseUpdate', () => {
         name: 'John',
       })
 
-      expect(result.UpdateExpression).toBe('SET #name = :name')
-      expect(result.ExpressionAttributeNames).toEqual({
+      expect(result.updateExpression).toBe('SET #name = :v1')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
         '#name': 'name',
       })
-      expect(result.ExpressionAttributeValues).toEqual({
-        ':name': 'John',
+      expect(expression.ExpressionAttributeValues).toEqual({
+        ':v1': 'John',
+      })
+    })
+  })
+
+  describe('Internal defensive branches', () => {
+    it('should handle malformed ADD expression without addToSet op', () => {
+      // This tests a defensive branch that shouldn't normally occur with proper typing
+      // $add type without $addToSet op should be ignored (doesn't add to any expression list)
+      const result = parseUpdate({
+        field: 'test',
+        // @ts-expect-error - Testing defensive branch for malformed ADD expression
+        malformed: { type: $add },
+      })
+
+      // Should not crash and only process the valid field
+      expect(result.updateExpression).toBe('SET #field = :v1')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
+        '#field': 'field',
+        '#malformed': 'malformed',
+      })
+    })
+
+    it('should handle malformed SET expression without op property', () => {
+      // This tests a defensive branch that shouldn't normally occur with proper typing
+      // $set type without op property should be ignored (doesn't add to SET expression list)
+      const result = parseUpdate({
+        field: 'test',
+        // @ts-expect-error - Testing defensive branch for malformed SET expression
+        malformed: { type: $set },
+      })
+
+      // Should not crash and only process the valid field
+      expect(result.updateExpression).toBe('SET #field = :v1')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
+        '#field': 'field',
+        '#malformed': 'malformed',
+      })
+    })
+
+    it('should handle $set expressions with unknown op values', () => {
+      // This tests branches for $set expressions with unrecognized op values
+      // $set with unknown op should be ignored (doesn't match any known op)
+      const result = parseUpdate({
+        field: 'test',
+        // @ts-expect-error - Testing defensive branch for unknown op
+        malformed: { type: $set, op: Symbol('unknown'), value: 5 },
+      })
+
+      // Should not crash and only process the valid field
+      expect(result.updateExpression).toBe('SET #field = :v1')
+      const expression = result.attributeExpressionMap.toDynamoAttributeExpression()
+      expect(expression.ExpressionAttributeNames).toEqual({
+        '#field': 'field',
+        '#malformed': 'malformed',
       })
     })
   })

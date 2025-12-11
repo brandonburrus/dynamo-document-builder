@@ -12,3 +12,21 @@ export const $type = Symbol('type')
 export const $beginsWith = Symbol('begins')
 export const $contains = Symbol('contains')
 export const $size = Symbol('size')
+
+export function isConditionSymbol(value: unknown): boolean {
+  return (
+    typeof value === 'symbol' &&
+    [
+      $comparison,
+      $logical,
+      $between,
+      $in,
+      $not,
+      $exists,
+      $type,
+      $beginsWith,
+      $contains,
+      $size,
+    ].includes(value)
+  )
+}

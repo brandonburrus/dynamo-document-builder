@@ -26,117 +26,58 @@ import {
   $not,
   $size,
   $type,
+  isConditionSymbol,
 } from '@/conditions/condition-symbols'
-import { buildAttributeExpression, type DynamoAttributeExpression } from '@/attributes'
+import { AttributeExpressionMap } from '@/attributes/attribute-map'
+import { DocumentBuilderError } from '@/errors'
 
-export interface DynamoConditionExpression extends DynamoAttributeExpression {
-  ConditionExpression: string
-}
-
-export class InvalidDynamoDBConditionExpressionError extends Error {
+export class InvalidConditionDocumentBuilderError extends DocumentBuilderError {
   constructor(message: string) {
-    super(`Invalid DynamoDB Condition Expression: ${message}`)
-    this.name = 'InvalidDynamoDBConditionExpressionError'
+    super(`Invalid Condition: ${message}`)
+    this.name = 'InvalidConditionDocumentBuilderError'
   }
-}
-
-interface BuildContext {
-  names: Set<string>
-  values: Set<NativeAttributeValue>
-  valuePlaceholders: Array<[NativeAttributeValue, string]>
-  valueCounters: Map<string, number>
-}
-
-function createContext(): BuildContext {
-  return {
-    names: new Set(),
-    values: new Set(),
-    valuePlaceholders: [],
-    valueCounters: new Map(),
-  }
-}
-
-function getNamePlaceholder(ctx: BuildContext, name: string): string {
-  ctx.names.add(name)
-  return `#${name}`
-}
-
-function getValuePlaceholder(
-  ctx: BuildContext,
-  value: NativeAttributeValue,
-  name?: string,
-): string {
-  const baseName = name || 'value'
-
-  // Check if this exact value with this base name already exists
-  const existingWithSameBase = ctx.valuePlaceholders.find(
-    ([val, placeholder]) => val === value && placeholder.startsWith(`:${baseName}`),
-  )
-
-  if (existingWithSameBase) {
-    return existingWithSameBase[1]
-  }
-
-  // Get the current counter for this base name
-  const currentCount = ctx.valueCounters.get(baseName) || 0
-
-  // Create the placeholder
-  const placeholder = currentCount === 0 ? `:${baseName}` : `:${baseName}${currentCount}`
-
-  // Update counters and maps
-  ctx.valueCounters.set(baseName, currentCount + 1)
-  ctx.valuePlaceholders.push([value, placeholder])
-  ctx.values.add(value)
-
-  return placeholder
 }
 
 function isSizeExpression(value: unknown): value is SizeExpression {
   return typeof value === 'object' && value !== null && 'type' in value && value.type === $size
 }
 
-function parseSizeExpression(ctx: BuildContext, expr: SizeExpression): string {
-  const namePath = parseAttributePath(ctx, expr.attribute)
+function parseSizeExpression(map: AttributeExpressionMap, expr: SizeExpression): string {
+  const namePath = parseAttributePath(map, expr.attribute)
   return `size(${namePath})`
 }
 
-function parseAttributePath(ctx: BuildContext, path: string): string {
+function parseAttributePath(map: AttributeExpressionMap, path: string): string {
   const parts = path.split('.')
-  return parts.map(part => getNamePlaceholder(ctx, part)).join('.')
+  return parts.map(part => map.addName(part)).join('.')
 }
 
-function parseValueExpression(ctx: BuildContext, value: ValueExpression): string {
+function parseValueExpression(map: AttributeExpressionMap, value: ValueExpression): string {
   if (isSizeExpression(value)) {
-    return parseSizeExpression(ctx, value)
+    return parseSizeExpression(map, value)
   }
-  return getValuePlaceholder(ctx, value)
+  return map.addValue(value)
 }
 
-function parseComparisonExpression(ctx: BuildContext, expr: ComparisonExpression): string {
-  const operand = parseAttributePath(ctx, expr.operand)
-  const operandParts = expr.operand.split('.')
-  const valueName = operandParts[operandParts.length - 1]
-
-  let valuePlaceholder: string
-  if (isSizeExpression(expr.value)) {
-    valuePlaceholder = parseSizeExpression(ctx, expr.value)
-  } else {
-    valuePlaceholder = getValuePlaceholder(ctx, expr.value, valueName)
-  }
-
-  return `${operand} ${expr.operator} ${valuePlaceholder}`
+function parseComparisonExpression(
+  map: AttributeExpressionMap,
+  expr: ComparisonExpression,
+): string {
+  const operand = parseAttributePath(map, expr.operand)
+  const value: string = parseValueExpression(map, expr.value)
+  return `${operand} ${expr.operator} ${value}`
 }
 
-function parseLogicalExpression(ctx: BuildContext, expr: LogicalExpression): string {
-  if (expr.subConditions.length === 0) {
-    throw new InvalidDynamoDBConditionExpressionError(
+function parseLogicalExpression(map: AttributeExpressionMap, expr: LogicalExpression): string {
+  if (expr.subConditions.length < 1) {
+    throw new InvalidConditionDocumentBuilderError(
       'Logical expression must have at least one sub-condition',
     )
   }
   const conditions = expr.subConditions.map(c => {
     let parsed: string
     if (isConditionTemplate(c)) {
-      parsed = parseConditionTemplate(ctx, c as ConditionTemplate)
+      parsed = parseConditionTemplate(map, c as ConditionTemplate)
       // Only wrap templates with multiple conditions in parentheses
       const templateKeys = Object.keys(c as ConditionTemplate)
       if (templateKeys.length > 1) {
@@ -144,7 +85,7 @@ function parseLogicalExpression(ctx: BuildContext, expr: LogicalExpression): str
       }
       return parsed
     } else {
-      parsed = parseConditionExpression(ctx, c as ConditionExpression)
+      parsed = parseConditionExpression(map, c as ConditionExpression)
       // Wrap logical expressions in parentheses to preserve precedence
       if ((c as ConditionExpression).type === $logical) {
         return `(${parsed})`
@@ -155,107 +96,96 @@ function parseLogicalExpression(ctx: BuildContext, expr: LogicalExpression): str
   return conditions.join(` ${expr.operator} `)
 }
 
-function parseBetweenExpression(ctx: BuildContext, expr: BetweenExpression): string {
-  const operand = parseAttributePath(ctx, expr.operand)
-  const operandParts = expr.operand.split('.')
-  const valueName = operandParts[operandParts.length - 1]
+function parseBetweenExpression(map: AttributeExpressionMap, expr: BetweenExpression): string {
+  const operand = parseAttributePath(map, expr.operand)
 
   const lower = isSizeExpression(expr.lowerValue)
-    ? parseSizeExpression(ctx, expr.lowerValue)
-    : getValuePlaceholder(ctx, expr.lowerValue, valueName)
+    ? parseSizeExpression(map, expr.lowerValue)
+    : parseValueExpression(map, expr.lowerValue)
 
   const upper = isSizeExpression(expr.upperValue)
-    ? parseSizeExpression(ctx, expr.upperValue)
-    : getValuePlaceholder(ctx, expr.upperValue, valueName)
+    ? parseSizeExpression(map, expr.upperValue)
+    : parseValueExpression(map, expr.upperValue)
 
   return `${operand} BETWEEN ${lower} AND ${upper}`
 }
 
-function parseInExpression(ctx: BuildContext, expr: InExpression): string {
-  if (expr.values.length === 0) {
-    throw new InvalidDynamoDBConditionExpressionError('IN expression must have at least one value')
+function parseInExpression(map: AttributeExpressionMap, expr: InExpression): string {
+  if (expr.values.length < 1) {
+    throw new InvalidConditionDocumentBuilderError('IN expression must have at least one value')
   }
-  const operand = parseAttributePath(ctx, expr.operand)
-  const operandParts = expr.operand.split('.')
-  const valueName = operandParts[operandParts.length - 1]
+  const operand = parseAttributePath(map, expr.operand)
 
-  const values = expr.values
-    .map(v =>
-      isSizeExpression(v) ? parseSizeExpression(ctx, v) : getValuePlaceholder(ctx, v, valueName),
-    )
-    .join(', ')
+  const values = expr.values.map(v => parseValueExpression(map, v)).join(', ')
 
   return `${operand} IN (${values})`
 }
 
-function parseNotExpression(ctx: BuildContext, expr: NotExpression): string {
+function parseNotExpression(map: AttributeExpressionMap, expr: NotExpression): string {
   let condition: string
   if (isConditionTemplate(expr.condition)) {
-    condition = parseConditionTemplate(ctx, expr.condition as ConditionTemplate)
+    condition = parseConditionTemplate(map, expr.condition as ConditionTemplate)
   } else {
-    condition = parseConditionExpression(ctx, expr.condition as ConditionExpression)
+    condition = parseConditionExpression(map, expr.condition as ConditionExpression)
   }
   return `NOT (${condition})`
 }
 
-function parseExistsExpression(ctx: BuildContext, expr: ExistsExpression): string {
-  const operand = parseAttributePath(ctx, expr.operand)
+function parseExistsExpression(map: AttributeExpressionMap, expr: ExistsExpression): string {
+  const operand = parseAttributePath(map, expr.operand)
   if (expr.not) {
     return `attribute_not_exists(${operand})`
   }
   return `attribute_exists(${operand})`
 }
 
-function parseTypeCheckExpression(ctx: BuildContext, expr: TypeCheckExpression): string {
-  const operand = parseAttributePath(ctx, expr.operand)
-  const operandParts = expr.operand.split('.')
-  const valueName = operandParts[operandParts.length - 1]
-  const typeValue = getValuePlaceholder(ctx, expr.attributeType, valueName)
+function parseTypeCheckExpression(map: AttributeExpressionMap, expr: TypeCheckExpression): string {
+  const operand = parseAttributePath(map, expr.operand)
+  const typeValue = parseValueExpression(map, expr.attributeType)
   return `attribute_type(${operand}, ${typeValue})`
 }
 
-function parseBeginsWithExpression(ctx: BuildContext, expr: BeginsWithExpression): string {
-  const operand = parseAttributePath(ctx, expr.operand)
-  const operandParts = expr.operand.split('.')
-  const valueName = operandParts[operandParts.length - 1]
-  const prefix = getValuePlaceholder(ctx, expr.prefix, valueName)
+function parseBeginsWithExpression(
+  map: AttributeExpressionMap,
+  expr: BeginsWithExpression,
+): string {
+  const operand = parseAttributePath(map, expr.operand)
+  const prefix = parseValueExpression(map, expr.prefix)
   return `begins_with(${operand}, ${prefix})`
 }
 
-function parseContainsExpression(ctx: BuildContext, expr: ContainsExpression): string {
-  const operand = parseAttributePath(ctx, expr.operand)
-  const operandParts = expr.operand.split('.')
-  const valueName = operandParts[operandParts.length - 1]
-  const value = getValuePlaceholder(ctx, expr.substringOrElement, valueName)
+function parseContainsExpression(map: AttributeExpressionMap, expr: ContainsExpression): string {
+  const operand = parseAttributePath(map, expr.operand)
+  const value = parseValueExpression(map, expr.substringOrElement)
   return `contains(${operand}, ${value})`
 }
 
-function parseConditionExpression(ctx: BuildContext, expr: ConditionExpression): string {
+function parseConditionExpression(map: AttributeExpressionMap, expr: ConditionExpression): string {
   if (!('type' in expr)) {
-    throw new InvalidDynamoDBConditionExpressionError('Unknown condition expression')
+    throw new InvalidConditionDocumentBuilderError('Unknown condition expression')
   }
 
   switch (expr.type) {
     case $comparison:
-      return parseComparisonExpression(ctx, expr as ComparisonExpression)
+      return parseComparisonExpression(map, expr as ComparisonExpression)
     case $logical:
-      return parseLogicalExpression(ctx, expr as LogicalExpression)
+      return parseLogicalExpression(map, expr as LogicalExpression)
     case $between:
-      return parseBetweenExpression(ctx, expr as BetweenExpression)
+      return parseBetweenExpression(map, expr as BetweenExpression)
     case $in:
-      return parseInExpression(ctx, expr as InExpression)
+      return parseInExpression(map, expr as InExpression)
     case $not:
-      return parseNotExpression(ctx, expr as NotExpression)
+      return parseNotExpression(map, expr as NotExpression)
     case $exists:
-      return parseExistsExpression(ctx, expr as ExistsExpression)
+      return parseExistsExpression(map, expr as ExistsExpression)
     case $type:
-      return parseTypeCheckExpression(ctx, expr as TypeCheckExpression)
+      return parseTypeCheckExpression(map, expr as TypeCheckExpression)
     case $beginsWith:
-      return parseBeginsWithExpression(ctx, expr as BeginsWithExpression)
+      return parseBeginsWithExpression(map, expr as BeginsWithExpression)
     case $contains:
-      return parseContainsExpression(ctx, expr as ContainsExpression)
+      return parseContainsExpression(map, expr as ContainsExpression)
     default:
-      throw new InvalidDynamoDBConditionExpressionError('Unknown expression type')
+      throw new InvalidConditionDocumentBuilderError('Unknown expression type')
   }
 }
 
@@ -264,26 +194,30 @@ function isConditionTemplate(value: unknown): value is ConditionTemplate {
     return false
   }
   if ('type' in value && typeof value.type === 'symbol') {
-    return false
+    return !isConditionSymbol(value.type)
   }
   return true
 }
 
-function parseConditionTemplate(ctx: BuildContext, template: ConditionTemplate): string {
+function isConditionExpression(value: unknown): value is ConditionExpression {
+  if (typeof value !== 'object' || value === null) {
+    return false
+  }
+  return 'type' in value && typeof value.type === 'symbol' && isConditionSymbol(value.type)
+}
+
+function parseConditionTemplate(map: AttributeExpressionMap, template: ConditionTemplate): string {
   const conditions: string[] = []
 
   for (const [operand, value] of Object.entries(template)) {
     if (typeof value === 'object' && value !== null && 'type' in value) {
       const expr = { ...value, operand } as ConditionExpression
-      conditions.push(parseConditionExpression(ctx, expr))
+      conditions.push(parseConditionExpression(map, expr))
     } else {
-      const namePlaceholder = parseAttributePath(ctx, operand)
-      // For simple values in templates, use the last part of the operand path as the value key
-      const operandParts = operand.split('.')
-      const valueKey = operandParts[operandParts.length - 1]
+      const namePlaceholder = parseAttributePath(map, operand)
       const valuePlaceholder = isSizeExpression(value)
-        ? parseValueExpression(ctx, value as ValueExpression)
-        : getValuePlaceholder(ctx, value as NativeAttributeValue, valueKey)
+        ? parseValueExpression(map, value as ValueExpression)
+        : parseValueExpression(map, value as NativeAttributeValue)
       conditions.push(`${namePlaceholder} = ${valuePlaceholder}`)
     }
   }
@@ -291,40 +225,37 @@ function parseConditionTemplate(ctx: BuildContext, template: ConditionTemplate):
   return conditions.join(' AND ')
 }
 
-export function parseCondition(condition: Condition): DynamoConditionExpression {
-  const ctx = createContext()
+export interface ConditionParserResult {
+  conditionExpression: string
+  attributeExpressionMap: AttributeExpressionMap
+}
+
+export function parseCondition(
+  condition: Condition,
+  attributeExpressionMap: AttributeExpressionMap = new AttributeExpressionMap(),
+): ConditionParserResult {
   let conditionExpression: string
 
   if (Array.isArray(condition)) {
     const expressions = condition.map(c => {
       if (isConditionTemplate(c)) {
-        return parseConditionTemplate(ctx, c)
+        return parseConditionTemplate(attributeExpressionMap, c)
+      } else if (isConditionExpression(c)) {
+        return parseConditionExpression(attributeExpressionMap, c)
       }
-      return parseConditionExpression(ctx, c as ConditionExpression)
+      throw new InvalidConditionDocumentBuilderError('Invalid condition')
     })
     conditionExpression = expressions.join(' AND ')
   } else if (isConditionTemplate(condition)) {
-    conditionExpression = parseConditionTemplate(ctx, condition)
+    conditionExpression = parseConditionTemplate(attributeExpressionMap, condition)
+  } else if (isConditionExpression(condition)) {
+    conditionExpression = parseConditionExpression(attributeExpressionMap, condition)
   } else {
-    conditionExpression = parseConditionExpression(ctx, condition as ConditionExpression)
-  }
-
-  // Convert Sets to Records for buildAttributeExpression
-  const names: Record<string, string> = {}
-  for (const name of ctx.names) {
-    names[`#${name}`] = name
-  }
-
-  const values: Record<string, NativeAttributeValue> = {}
-  for (const [value, placeholder] of ctx.valuePlaceholders) {
-    values[placeholder] = value
+    throw new InvalidConditionDocumentBuilderError('Invalid condition')
   }
 
   return {
-    ConditionExpression: conditionExpression,
-    ...buildAttributeExpression({
-      names,
-      values,
-    }),
+    conditionExpression,
+    attributeExpressionMap,
   }
 }

@@ -25,11 +25,12 @@ export class Update<EntitySchema extends ZodObject> extends EntityCommand<
   }
 
   public async execute(entity: DynamoEntity<EntitySchema>): Promise<UpdateResult> {
-    const updateExpression = parseUpdate(this.config.update)
+    const { updateExpression, attributeExpressionMap } = parseUpdate(this.config.update)
     const updateItem = new UpdateCommand({
       TableName: entity.table.tableName,
       Key: entity.buildPrimaryKey(this.config.key),
-      ...updateExpression,
+      UpdateExpression: updateExpression,
+      ...attributeExpressionMap.toDynamoAttributeExpression(),
     })
     const updateResult = await entity.table.documentClient.send(updateItem)
     return {
