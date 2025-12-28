@@ -1,64 +1,61 @@
+import type { DynamoEntity } from '@/core/entity'
+import type { EntitySchema } from '@/core/core-types'
 import type {
-  ConsumedCapacity,
-  ReturnConsumedCapacity,
+  ItemCollectionMetrics,
   ReturnItemCollectionMetrics,
   ReturnValue,
-  ReturnValuesOnConditionCheckFailure,
 } from '@aws-sdk/client-dynamodb'
-import { DeleteCommand, type DeleteCommandInput } from '@aws-sdk/lib-dynamodb'
-import type { ResponseMetadata } from '@aws-sdk/types'
-import type { DynamoEntity, EntitySchema } from '@/core/entity'
-import { EntityCommand } from '@/commands/base-entity-command'
 import type { ZodObject } from 'zod/v4'
+import { DeleteCommand } from '@aws-sdk/lib-dynamodb'
+import { type BaseConfig, EntityCommand, type BaseResult } from '@/commands/base-entity-command'
 
-export interface DeleteConfig<Schema extends ZodObject> {
+export type DeleteConfig<Schema extends ZodObject> = BaseConfig & {
   key: Partial<EntitySchema<Schema>>
   returnValues?: ReturnValue
-  returnConsumedCapacity?: ReturnConsumedCapacity
   returnItemCollectionMetrics?: ReturnItemCollectionMetrics
-  returnValuesOnConditionCheckFailure?: ReturnValuesOnConditionCheckFailure
-  skipValidation?: boolean
 }
 
-export interface DeleteResult<Schema extends ZodObject> {
-  oldItem?: EntitySchema<Schema> | undefined
-  responseMetadata?: ResponseMetadata
-  consumedCapacity?: ConsumedCapacity | undefined
+export type DeleteResult<Schema extends ZodObject> = BaseResult & {
+  deletedItem?: EntitySchema<Schema> | undefined
+  itemCollectionMetrics?: ItemCollectionMetrics
 }
 
 export class Delete<Schema extends ZodObject> extends EntityCommand<DeleteResult<Schema>, Schema> {
-  constructor(private config: DeleteConfig<Schema>) {
+  #config: DeleteConfig<Schema>
+
+  constructor(config: DeleteConfig<Schema>) {
     super()
+    this.#config = config
   }
 
   public async execute(entity: DynamoEntity<Schema>): Promise<DeleteResult<Schema>> {
-    const deleteCommandInput: DeleteCommandInput = {
+    const deleteCmd = new DeleteCommand({
       TableName: entity.table.tableName,
-      Key: entity.buildPrimaryKey(this.config.key),
+      Key: entity.buildPrimaryKey(this.#config.key),
+      ReturnValues: this.#config.returnValues,
+      ReturnConsumedCapacity: this.#config.returnConsumedCapacity,
+      ReturnItemCollectionMetrics: this.#config.returnItemCollectionMetrics,
+    })
+
+    const deleteResult = await entity.table.documentClient.send(deleteCmd, {
+      abortSignal: this.#config.abortController?.signal,
+      requestTimeout: this.#config.timeoutMs,
+    })
+
+    let deletedItem: EntitySchema<Schema> | undefined
+    if (deleteResult.Attributes) {
+      if (this.#config.skipValidation) {
+        deletedItem = deleteResult.Attributes as EntitySchema<Schema>
+      } else {
+        deletedItem = await entity.schema.parseAsync(deleteResult.Attributes)
+      }
     }
-    if (this.config.returnValues) {
-      deleteCommandInput.ReturnValues = this.config.returnValues
-    }
-    if (this.config.returnConsumedCapacity) {
-      deleteCommandInput.ReturnConsumedCapacity = this.config.returnConsumedCapacity
-    }
-    if (this.config.returnItemCollectionMetrics) {
-      deleteCommandInput.ReturnItemCollectionMetrics = this.config.returnItemCollectionMetrics
-    }
-    if (this.config.returnValuesOnConditionCheckFailure) {
-      deleteCommandInput.ReturnValuesOnConditionCheckFailure =
-        this.config.returnValuesOnConditionCheckFailure
-    }
-    const deleteItem = new DeleteCommand(deleteCommandInput)
-    const deleteResult = await entity.table.documentClient.send(deleteItem)
-    let oldItem: EntitySchema<Schema> | undefined
-    if (deleteResult.Attributes && !this.config.skipValidation) {
-      oldItem = await entity.validateAsync(deleteResult.Attributes)
-    }
+
     return {
-      oldItem,
+      deletedItem,
       responseMetadata: deleteResult.$metadata,
       consumedCapacity: deleteResult.ConsumedCapacity,
+      itemCollectionMetrics: deleteResult.ItemCollectionMetrics,
     }
   }
 }

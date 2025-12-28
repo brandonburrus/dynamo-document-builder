@@ -27,10 +27,10 @@
     "url": "https://github.com/brandonburrus/dynamo-document-builder/issues"
   },
   "scripts": {
-    "prepare": "husky",
     "build": "rimraf dist && tsc",
     "format": "biome format --write",
     "lint": "biome check --fix",
+    "prepare": "husky",
     "prepublishOnly": "npm run build && npm run check && npm run test",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
@@ -40,7 +40,7 @@
   "lint-staged": {
     "*.ts": [
       "biome check --write --staged",
-      "vitest --passWithNoTests"
+      "vitest"
     ],
     "*.json": [
       "biome check --write"
@@ -74,6 +74,7 @@
     "rimraf": "^6.0.1",
     "sinon": "^20.0.0",
     "ts-node": "^10.9.2",
+    "typedoc": "^0.28.15",
     "typescript": "^5.8.3",
     "vitest": "^4.0.14"
   }

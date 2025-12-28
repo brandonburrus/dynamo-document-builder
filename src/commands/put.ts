@@ -1,54 +1,72 @@
-import type { ConsumedCapacity, ReturnValue } from '@aws-sdk/client-dynamodb'
-import { PutCommand, type PutCommandInput } from '@aws-sdk/lib-dynamodb'
-import type { ResponseMetadata } from '@aws-sdk/types'
-import type { DynamoEntity, EntitySchema } from '@/core/entity'
-import { EntityCommand } from '@/commands/base-entity-command'
+import type { DynamoEntity } from '@/core/entity'
+import type { EntitySchema } from '@/core/core-types'
+import type {
+  ItemCollectionMetrics,
+  ReturnItemCollectionMetrics,
+  ReturnValue,
+} from '@aws-sdk/client-dynamodb'
 import type { ZodObject } from 'zod/v4'
+import { PutCommand } from '@aws-sdk/lib-dynamodb'
+import { type BaseConfig, EntityCommand, type BaseResult } from '@/commands/base-entity-command'
 
-export interface PutConfig<Schema extends ZodObject> {
+export type PutConfig<Schema extends ZodObject> = BaseConfig & {
   item: EntitySchema<Schema>
   returnValues?: ReturnValue
-  skipValidation?: boolean
+  returnItemCollectionMetrics?: ReturnItemCollectionMetrics
 }
 
-export type PutResult<Schema extends ZodObject> = {
+export type PutResult<Schema extends ZodObject> = BaseResult & {
   returnItem: EntitySchema<Schema> | undefined
-  responseMetadata: ResponseMetadata
-  consumedCapacity?: ConsumedCapacity | undefined
+  itemCollectionMetrics?: ItemCollectionMetrics
 }
 
 export class Put<Schema extends ZodObject> extends EntityCommand<PutResult<Schema>, Schema> {
-  constructor(private config: PutConfig<Schema>) {
+  #config: PutConfig<Schema>
+
+  constructor(config: PutConfig<Schema>) {
     super()
+    this.#config = config
   }
 
   public async execute(entity: DynamoEntity<Schema>): Promise<PutResult<Schema>> {
-    const encodedData = this.config.skipValidation
-      ? this.config.item
-      : await entity.encodeAsync(this.config.item)
-    const putItemInput: PutCommandInput = {
+    const encodedData = this.#config.skipValidation
+      ? this.#config.item
+      : await entity.schema.encodeAsync(this.#config.item)
+
+    const put = new PutCommand({
       TableName: entity.table.tableName,
       Item: {
         ...encodedData,
-        ...entity.buildPrimaryKey(this.config.item),
+        ...entity.buildAllKeys(this.#config.item),
       },
-    }
-    if (this.config.returnValues) {
-      putItemInput.ReturnValues = this.config.returnValues
-    }
-    const putResult = await entity.table.documentClient.send(new PutCommand(putItemInput))
+      ReturnValues: this.#config.returnValues,
+      ReturnConsumedCapacity: this.#config.returnConsumedCapacity,
+      ReturnItemCollectionMetrics: this.#config.returnItemCollectionMetrics,
+    })
 
-    let oldItem: EntitySchema<Schema> | undefined
+    const putResult = await entity.table.documentClient.send(put, {
+      abortSignal: this.#config.abortController?.signal,
+      requestTimeout: this.#config.timeoutMs,
+    })
+
     if (putResult.Attributes) {
-      oldItem = this.config.skipValidation
+      const returnItem: EntitySchema<Schema> = this.#config.skipValidation
         ? (putResult.Attributes as EntitySchema<Schema>)
-        : await entity.validateAsync(putResult.Attributes)
+        : await entity.schema.parseAsync(putResult.Attributes)
+
+      return {
+        returnItem,
+        responseMetadata: putResult.$metadata,
+        consumedCapacity: putResult.ConsumedCapacity,
+        itemCollectionMetrics: putResult.ItemCollectionMetrics,
+      }
     }
 
     return {
-      returnItem: oldItem,
+      returnItem: undefined,
       responseMetadata: putResult.$metadata,
       consumedCapacity: putResult.ConsumedCapacity,
+      itemCollectionMetrics: putResult.ItemCollectionMetrics,
     }
   }
 }

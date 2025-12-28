@@ -1,83 +1,81 @@
+import type { Condition } from '@/conditions/condition-types'
+import type { DynamoEntity } from '@/core/entity'
+import type { EntitySchema } from '@/core/core-types'
 import type {
-  ConsumedCapacity,
-  ReturnConsumedCapacity,
-  ReturnItemCollectionMetrics,
-  ReturnValue,
+  ItemCollectionMetrics,
   ReturnValuesOnConditionCheckFailure,
 } from '@aws-sdk/client-dynamodb'
-import { PutCommand, type PutCommandInput } from '@aws-sdk/lib-dynamodb'
-import type { ResponseMetadata } from '@aws-sdk/types'
-import type { DynamoEntity, EntitySchema } from '@/core/entity'
-import { EntityCommand } from '@/commands/base-entity-command'
-import { parseCondition } from '@/conditions/condition-parser'
-import type { Condition } from '@/conditions/condition-types'
+import type { PutConfig } from '@/commands/put'
 import type { ZodObject } from 'zod/v4'
+import { PutCommand } from '@aws-sdk/lib-dynamodb'
+import { parseCondition } from '@/conditions/condition-parser'
+import { type BaseResult, EntityCommand } from '@/commands/base-entity-command'
 
-export interface ConditionalPutConfig<Schema extends ZodObject> {
-  item: EntitySchema<Schema>
+export type ConditionalPutConfig<Schema extends ZodObject> = PutConfig<Schema> & {
   condition: Condition
-  returnValues?: ReturnValue
-  returnConsumedCapacity?: ReturnConsumedCapacity
-  returnItemCollectionMetrics?: ReturnItemCollectionMetrics
   returnValuesOnConditionCheckFailure?: ReturnValuesOnConditionCheckFailure
-  skipValidation?: boolean
 }
 
-export type ConditionalPutResult<Schema extends ZodObject> = {
+export type ConditionalPutResult<Schema extends ZodObject> = BaseResult & {
   returnItem: EntitySchema<Schema> | undefined
-  responseMetadata?: ResponseMetadata
-  consumedCapacity?: ConsumedCapacity | undefined
+  itemCollectionMetrics: ItemCollectionMetrics | undefined
 }
 
 export class ConditionalPut<Schema extends ZodObject> extends EntityCommand<
   ConditionalPutResult<Schema>,
   Schema
 > {
-  constructor(private config: ConditionalPutConfig<Schema>) {
+  #config: ConditionalPutConfig<Schema>
+
+  constructor(config: ConditionalPutConfig<Schema>) {
     super()
+    this.#config = config
   }
 
   public async execute(entity: DynamoEntity<Schema>): Promise<ConditionalPutResult<Schema>> {
-    const encodedData = this.config.skipValidation
-      ? this.config.item
-      : await entity.encodeAsync(this.config.item)
-    const { conditionExpression, attributeExpressionMap } = parseCondition(this.config.condition)
-    const putCommandInput: PutCommandInput = {
+    const encodedData = this.#config.skipValidation
+      ? this.#config.item
+      : await entity.schema.encodeAsync(this.#config.item)
+
+    const { conditionExpression, attributeExpressionMap } = parseCondition(this.#config.condition)
+
+    const put = new PutCommand({
       TableName: entity.table.tableName,
       Item: {
         ...encodedData,
-        ...entity.buildPrimaryKey(this.config.item),
+        ...entity.buildAllKeys(this.#config.item),
       },
       ConditionExpression: conditionExpression,
       ...attributeExpressionMap.toDynamoAttributeExpression(),
-    }
-    if (this.config.returnValues) {
-      putCommandInput.ReturnValues = this.config.returnValues
-    }
-    if (this.config.returnConsumedCapacity) {
-      putCommandInput.ReturnConsumedCapacity = this.config.returnConsumedCapacity
-    }
-    if (this.config.returnItemCollectionMetrics) {
-      putCommandInput.ReturnItemCollectionMetrics = this.config.returnItemCollectionMetrics
-    }
-    if (this.config.returnValuesOnConditionCheckFailure) {
-      putCommandInput.ReturnValuesOnConditionCheckFailure =
-        this.config.returnValuesOnConditionCheckFailure
-    }
-    const putItem = new PutCommand(putCommandInput)
-    const putResult = await entity.table.documentClient.send(putItem)
+      ReturnValues: this.#config.returnValues,
+      ReturnConsumedCapacity: this.#config.returnConsumedCapacity,
+      ReturnItemCollectionMetrics: this.#config.returnItemCollectionMetrics,
+      ReturnValuesOnConditionCheckFailure: this.#config.returnValuesOnConditionCheckFailure,
+    })
 
-    let oldItem: EntitySchema<Schema> | undefined
+    const putResult = await entity.table.documentClient.send(put, {
+      abortSignal: this.#config.abortController?.signal,
+      requestTimeout: this.#config.timeoutMs,
+    })
+
     if (putResult.Attributes) {
-      oldItem = this.config.skipValidation
+      const returnItem: EntitySchema<Schema> = this.#config.skipValidation
         ? (putResult.Attributes as EntitySchema<Schema>)
-        : await entity.validateAsync(putResult.Attributes)
+        : await entity.schema.parseAsync(putResult.Attributes)
+
+      return {
+        returnItem,
+        responseMetadata: putResult.$metadata,
+        consumedCapacity: putResult.ConsumedCapacity,
+        itemCollectionMetrics: putResult.ItemCollectionMetrics,
+      }
     }
 
     return {
-      returnItem: oldItem,
+      returnItem: undefined,
       responseMetadata: putResult.$metadata,
       consumedCapacity: putResult.ConsumedCapacity,
+      itemCollectionMetrics: putResult.ItemCollectionMetrics,
     }
   }
 }

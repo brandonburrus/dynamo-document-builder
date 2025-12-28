@@ -58,6 +58,14 @@ export class AttributeExpressionMap {
     return [this.addName(name), this.addValue(value)]
   }
 
+  public toDynamoAttributeNames(): AttributeNames {
+    return this.attributeNames
+  }
+
+  public toDynamoAttributeValues(): AttributeValues {
+    return this.attributeValues
+  }
+
   public toDynamoAttributeExpression(): DynamoAttributeExpression {
     const expression: DynamoAttributeExpression = {}
     if (this.names.size > 0) {

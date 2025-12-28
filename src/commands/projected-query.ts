@@ -1,44 +1,48 @@
-import type { Condition } from '@/conditions/condition-types'
 import type { DynamoEntity } from '@/core/entity'
 import type { EntitySchema } from '@/core/core-types'
-import type { Select } from '@aws-sdk/client-dynamodb'
+import type { QueryConfig } from '@/commands/query'
 import type { ZodObject } from 'zod/v4'
 import { AttributeExpressionMap } from '@/attributes/attribute-map'
-import { QueryCommand } from '@aws-sdk/lib-dynamodb'
-import { parseCondition } from '@/conditions'
-import { type BaseConfig, EntityCommand, type BaseResult } from '@/commands/base-entity-command'
+import { parseCondition } from '@/conditions/condition-parser'
+import { parseProjection, type Projection } from '@/projections/projection-parser'
+import { type BaseResult, EntityCommand } from '@/commands/base-entity-command'
+import { type NativeAttributeValue, QueryCommand } from '@aws-sdk/lib-dynamodb'
 import pMap from 'p-map'
 
-const QUERY_VALIDATION_CONCURRENCY = 64
+const PROJECTED_QUERY_VALIDATION_CONCURRENCY = 64
 
-export type QueryConfig<Schema extends ZodObject> = BaseConfig & {
-  keyCondition: Condition
-  filter?: Condition
-  select?: Select
-  limit?: number
-  consistent?: boolean
-  validationConcurrency?: number
-  queryIndexName?: string
-  reverseIndexScan?: boolean
-  exclusiveStartKey?: Partial<EntitySchema<Schema>>
+export type ProjectedQueryConfig<
+  Schema extends ZodObject,
+  ProjectionSchema extends ZodObject,
+> = QueryConfig<Schema> & {
+  projection: Projection
+  projectionSchema: ProjectionSchema
 }
 
-export type QueryResult<Schema extends ZodObject> = BaseResult & {
-  items: EntitySchema<Schema>[]
+export type ProjectedQueryResult<
+  Schema extends ZodObject,
+  ProjectionSchema extends ZodObject,
+> = BaseResult & {
+  items: EntitySchema<ProjectionSchema>[]
   count: number
   scannedCount: number
   lastEvaluatedKey?: Partial<EntitySchema<Schema>> | undefined
 }
 
-export class Query<Schema extends ZodObject> extends EntityCommand<QueryResult<Schema>, Schema> {
-  #config: QueryConfig<Schema>
+export class ProjectedQuery<
+  Schema extends ZodObject,
+  ProjectedSchema extends ZodObject,
+> extends EntityCommand<ProjectedQueryResult<Schema, ProjectedSchema>, Schema> {
+  #config: ProjectedQueryConfig<Schema, ProjectedSchema>
 
-  constructor(config: QueryConfig<Schema>) {
+  constructor(config: ProjectedQueryConfig<Schema, ProjectedSchema>) {
     super()
     this.#config = config
   }
 
-  public async execute(entity: DynamoEntity<Schema>): Promise<QueryResult<Schema>> {
+  public async execute(
+    entity: DynamoEntity<Schema>,
+  ): Promise<ProjectedQueryResult<Schema, ProjectedSchema>> {
     const attributeExpressionMap = new AttributeExpressionMap()
 
     const keyConditionExpression = parseCondition(
@@ -54,17 +58,25 @@ export class Query<Schema extends ZodObject> extends EntityCommand<QueryResult<S
       ).conditionExpression
     }
 
+    const { projectionExpression } = parseProjection(
+      this.#config.projection,
+      attributeExpressionMap,
+    )
+
     const query = new QueryCommand({
       TableName: entity.table.tableName,
       KeyConditionExpression: keyConditionExpression,
       FilterExpression: filterExpression,
+      ProjectionExpression: projectionExpression,
       ...attributeExpressionMap.toDynamoAttributeExpression(),
       Select: this.#config.select,
       Limit: this.#config.limit,
       ConsistentRead: this.#config.consistent ?? false,
       IndexName: this.#config.queryIndexName,
       ScanIndexForward: !this.#config.reverseIndexScan,
-      ExclusiveStartKey: this.#config.exclusiveStartKey,
+      ExclusiveStartKey: this.#config.exclusiveStartKey as
+        | Record<string, NativeAttributeValue>
+        | undefined,
       ReturnConsumedCapacity: this.#config.returnConsumedCapacity,
     })
 
@@ -73,14 +85,19 @@ export class Query<Schema extends ZodObject> extends EntityCommand<QueryResult<S
       requestTimeout: this.#config.timeoutMs,
     })
 
-    let items: EntitySchema<Schema>[] = []
+    let items: EntitySchema<ProjectedSchema>[] = []
     if (queryResult.Items) {
       if (this.#config.skipValidation) {
-        items = queryResult.Items as EntitySchema<Schema>[]
+        items = queryResult.Items as EntitySchema<ProjectedSchema>[]
       } else {
-        items = await pMap(queryResult.Items, item => entity.schema.parseAsync(item), {
-          concurrency: this.#config.validationConcurrency ?? QUERY_VALIDATION_CONCURRENCY,
-        })
+        items = await pMap(
+          queryResult.Items,
+          item => this.#config.projectionSchema.parseAsync(item),
+          {
+            concurrency:
+              this.#config.validationConcurrency ?? PROJECTED_QUERY_VALIDATION_CONCURRENCY,
+          },
+        )
       }
     }
 

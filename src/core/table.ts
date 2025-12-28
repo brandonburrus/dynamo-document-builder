@@ -1,28 +1,37 @@
 import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb'
+import type {
+  NamedGlobalSecondaryIndexKeyNames,
+  NamedLocalSecondaryIndexKeyNames,
+} from '@/core/core-types'
 
 export interface DynamoTableConfig {
   tableName: string
   documentClient: DynamoDBDocumentClient
   keyNames?: {
     partitionKey: string
-    sortKey?: string
+    sortKey?: string | null
+    globalSecondaryIndexes?: NamedGlobalSecondaryIndexKeyNames
+    localSecondaryIndexes?: NamedLocalSecondaryIndexKeyNames
   }
 }
 
-/**
- * TODO: Add documentation
- */
 export class DynamoTable {
   #tableName: string
   #documentClient: DynamoDBDocumentClient
-  #partitionKey: string
-  #sortKey: string
+
+  #pk: string
+  #sk: string | null
+
+  #gsi: NamedGlobalSecondaryIndexKeyNames
+  #lsi: NamedLocalSecondaryIndexKeyNames
 
   constructor(config: DynamoTableConfig) {
     this.#tableName = config.tableName
     this.#documentClient = config.documentClient
-    this.#partitionKey ??= config.keyNames?.partitionKey ?? 'PK'
-    this.#sortKey ??= config.keyNames?.sortKey ?? 'SK'
+    this.#pk = config.keyNames?.partitionKey ?? 'PK'
+    this.#sk = config.keyNames?.sortKey ?? 'SK'
+    this.#gsi = config.keyNames?.globalSecondaryIndexes ?? {}
+    this.#lsi = config.keyNames?.localSecondaryIndexes ?? {}
   }
 
   public get tableName(): string {
@@ -34,10 +43,18 @@ export class DynamoTable {
   }
 
   public get partitionKeyName(): string {
-    return this.#partitionKey
+    return this.#pk
   }
 
-  public get sortKeyName(): string {
-    return this.#sortKey
+  public get sortKeyName(): string | null {
+    return this.#sk
+  }
+
+  public get globalSecondaryIndexKeyNames(): NamedGlobalSecondaryIndexKeyNames {
+    return this.#gsi
+  }
+
+  public get localSecondaryIndexKeyNames(): NamedLocalSecondaryIndexKeyNames {
+    return this.#lsi
   }
 }
