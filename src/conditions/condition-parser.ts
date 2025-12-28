@@ -31,13 +31,6 @@ import {
 import { AttributeExpressionMap } from '@/attributes/attribute-map'
 import { DocumentBuilderError } from '@/errors'
 
-export class InvalidConditionDocumentBuilderError extends DocumentBuilderError {
-  constructor(message: string) {
-    super(`Invalid Condition: ${message}`)
-    this.name = 'InvalidConditionDocumentBuilderError'
-  }
-}
-
 function isSizeExpression(value: unknown): value is SizeExpression {
   return typeof value === 'object' && value !== null && 'type' in value && value.type === $size
 }
@@ -70,8 +63,8 @@ function parseComparisonExpression(
 
 function parseLogicalExpression(map: AttributeExpressionMap, expr: LogicalExpression): string {
   if (expr.subConditions.length < 1) {
-    throw new InvalidConditionDocumentBuilderError(
-      'Logical expression must have at least one sub-condition',
+    throw new DocumentBuilderError(
+      'Invalid Condition: Logical expression must have at least one sub-condition',
     )
   }
   const conditions = expr.subConditions.map(c => {
@@ -112,7 +105,7 @@ function parseBetweenExpression(map: AttributeExpressionMap, expr: BetweenExpres
 
 function parseInExpression(map: AttributeExpressionMap, expr: InExpression): string {
   if (expr.values.length < 1) {
-    throw new InvalidConditionDocumentBuilderError('IN expression must have at least one value')
+    throw new DocumentBuilderError('InvalidCondition: IN expression must have at least one value')
   }
   const operand = parseAttributePath(map, expr.operand)
 
@@ -162,7 +155,7 @@ function parseContainsExpression(map: AttributeExpressionMap, expr: ContainsExpr
 
 function parseConditionExpression(map: AttributeExpressionMap, expr: ConditionExpression): string {
   if (!('type' in expr)) {
-    throw new InvalidConditionDocumentBuilderError('Unknown condition expression')
+    throw new DocumentBuilderError('Unknown condition expression')
   }
 
   switch (expr.type) {
@@ -185,7 +178,7 @@ function parseConditionExpression(map: AttributeExpressionMap, expr: ConditionEx
     case $contains:
       return parseContainsExpression(map, expr as ContainsExpression)
     default:
-      throw new InvalidConditionDocumentBuilderError('Unknown expression type')
+      throw new DocumentBuilderError('Unknown expression type')
   }
 }
 
@@ -225,7 +218,7 @@ function parseConditionTemplate(map: AttributeExpressionMap, template: Condition
   return conditions.join(' AND ')
 }
 
-export interface ConditionParserResult {
+export type ConditionParserResult = {
   conditionExpression: string
   attributeExpressionMap: AttributeExpressionMap
 }
@@ -243,7 +236,7 @@ export function parseCondition(
       } else if (isConditionExpression(c)) {
         return parseConditionExpression(attributeExpressionMap, c)
       }
-      throw new InvalidConditionDocumentBuilderError('Invalid condition')
+      throw new DocumentBuilderError('Invalid condition')
     })
     conditionExpression = expressions.join(' AND ')
   } else if (isConditionTemplate(condition)) {
@@ -251,7 +244,7 @@ export function parseCondition(
   } else if (isConditionExpression(condition)) {
     conditionExpression = parseConditionExpression(attributeExpressionMap, condition)
   } else {
-    throw new InvalidConditionDocumentBuilderError('Invalid condition')
+    throw new DocumentBuilderError('Invalid condition')
   }
 
   return {

@@ -1,10 +1,11 @@
-import { GetCommand } from '@aws-sdk/lib-dynamodb'
 import type { DynamoEntity } from '@/core/entity'
-import { type BaseResult, EntityCommand } from '@/commands/base-entity-command'
-import type { ZodObject } from 'zod/v4'
-import type { GetConfig } from '@/commands/get'
-import { parseProjection, type Projection } from '@/projections/projection-parser'
 import type { EntitySchema } from '@/core/core-types'
+import type { GetConfig } from '@/commands/get'
+import type { Projection } from '@/projections/projection-types'
+import type { ZodObject } from 'zod/v4'
+import { GetCommand } from '@aws-sdk/lib-dynamodb'
+import { parseProjection } from '@/projections/projection-parser'
+import { type BaseResult, EntityCommand } from '@/commands/base-entity-command'
 
 export type ProjectedGetConfig<
   Schema extends ZodObject,

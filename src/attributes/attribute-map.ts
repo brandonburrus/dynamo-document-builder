@@ -3,7 +3,7 @@ import type { NativeAttributeValue } from '@aws-sdk/lib-dynamodb'
 export type AttributeValues = Record<string, NativeAttributeValue>
 export type AttributeNames = Record<string, string>
 
-export interface DynamoAttributeExpression {
+export type DynamoAttributeExpression = {
   ExpressionAttributeValues?: AttributeValues | undefined
   ExpressionAttributeNames?: AttributeNames | undefined
 }

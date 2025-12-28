@@ -1,15 +1,15 @@
 import type { DynamoEntity } from '@/core/entity'
 import type { EntitySchema } from '@/core/core-types'
+import type { Projection } from '@/projections/projection-types'
 import type { QueryConfig } from '@/commands/query'
 import type { ZodObject } from 'zod/v4'
 import { AttributeExpressionMap } from '@/attributes/attribute-map'
+import { PROJECTED_QUERY_VALIDATION_CONCURRENCY } from '@/internal-constants'
 import { parseCondition } from '@/conditions/condition-parser'
-import { parseProjection, type Projection } from '@/projections/projection-parser'
+import { parseProjection } from '@/projections/projection-parser'
 import { type BaseResult, EntityCommand } from '@/commands/base-entity-command'
 import { type NativeAttributeValue, QueryCommand } from '@aws-sdk/lib-dynamodb'
 import pMap from 'p-map'
-
-const PROJECTED_QUERY_VALIDATION_CONCURRENCY = 64
 
 export type ProjectedQueryConfig<
   Schema extends ZodObject,

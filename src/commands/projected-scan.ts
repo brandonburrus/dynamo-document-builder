@@ -1,15 +1,15 @@
 import type { DynamoEntity } from '@/core/entity'
 import type { EntitySchema } from '@/core/core-types'
 import type { ScanConfig } from '@/commands/scan'
+import type { Projection } from '@/projections/projection-types'
 import type { ZodObject } from 'zod/v4'
 import { AttributeExpressionMap } from '@/attributes/attribute-map'
 import { EntityCommand, type BaseResult } from '@/commands/base-entity-command'
+import { PROJECTED_SCAN_VALIDATION_CONCURRENCY } from '@/internal-constants'
 import { ScanCommand } from '@aws-sdk/lib-dynamodb'
 import { parseCondition } from '@/conditions/condition-parser'
-import { type Projection, parseProjection } from '@/projections/projection-parser'
+import { parseProjection } from '@/projections/projection-parser'
 import pMap from 'p-map'
-
-const PROJECTED_SCAN_VALIDATION_CONCURRENCY = 64
 
 export type ProjectedScanConfig<ProjectionSchema extends ZodObject> =
   ScanConfig<ProjectionSchema> & {

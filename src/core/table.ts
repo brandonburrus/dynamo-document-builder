@@ -4,7 +4,7 @@ import type {
   NamedLocalSecondaryIndexKeyNames,
 } from '@/core/core-types'
 
-export interface DynamoTableConfig {
+export type DynamoTableConfig = {
   tableName: string
   documentClient: DynamoDBDocumentClient
   keyNames?: {

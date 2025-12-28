@@ -8,5 +8,3 @@ export function lessThan(value: ValueExpression): ComparisonExpressionTemplate {
     value,
   }
 }
-
-export const lt = lessThan

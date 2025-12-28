@@ -8,5 +8,3 @@ export function lessThanOrEqualTo(value: ValueExpression): ComparisonExpressionT
     value,
   }
 }
-
-export const lte = lessThanOrEqualTo

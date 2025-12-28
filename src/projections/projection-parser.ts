@@ -1,8 +1,7 @@
 import { AttributeExpressionMap } from '@/attributes/attribute-map'
+import type { Projection } from '@/projections/projection-types'
 
-export type Projection = string[]
-
-export interface ProjectionResult {
+export type ProjectionResult = {
   projectionExpression: string
   attributeExpressionMap: AttributeExpressionMap
 }

@@ -12,7 +12,7 @@ import type { ZodObject } from 'zod/v4'
 import type { EntitySchema } from '@/core/core-types'
 import { DocumentBuilderError } from '@/errors'
 
-export interface DynamoEntityConfig<Schema extends ZodObject> {
+export type DynamoEntityConfig<Schema extends ZodObject> = {
   table: DynamoTable
   schema: Schema
   partitionKey?: DynamoKeyBuilder<EntitySchema<Schema>>

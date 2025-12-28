@@ -8,5 +8,3 @@ export function greaterThanOrEqualTo(value: ValueExpression): ComparisonExpressi
     value,
   }
 }
-
-export const gte = greaterThanOrEqualTo

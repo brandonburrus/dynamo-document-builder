@@ -8,5 +8,3 @@ export function equals(value: ValueExpression): ComparisonExpressionTemplate {
     value,
   }
 }
-
-export const eq = equals

@@ -8,5 +8,3 @@ export function notEquals(value: ValueExpression): ComparisonExpressionTemplate 
     value,
   }
 }
-
-export const ne = notEquals

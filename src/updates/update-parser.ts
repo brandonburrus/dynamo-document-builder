@@ -13,13 +13,6 @@ import {
 } from '@/updates/update-symbols'
 import { DocumentBuilderError } from '@/errors'
 
-export class InvalidUpdateDocumentBuilderError extends DocumentBuilderError {
-  constructor(message: string) {
-    super(`Invalid Update: ${message}`)
-    this.name = 'InvalidUpdateDocumentBuilderError'
-  }
-}
-
 function parseAttributePath(map: AttributeExpressionMap, path: string): string {
   const parts = path.split('.')
 
@@ -51,7 +44,7 @@ function isUpdateExpression(value: unknown): value is UpdateExpression {
   )
 }
 
-export interface UpdateParserResult {
+export type UpdateParserResult = {
   updateExpression: string
   attributeExpressionMap: AttributeExpressionMap
 }
@@ -61,7 +54,7 @@ export function parseUpdate(
   attributeExpressionMap: AttributeExpressionMap = new AttributeExpressionMap(),
 ): UpdateParserResult {
   if (Object.keys(update).length === 0) {
-    throw new InvalidUpdateDocumentBuilderError('Update expression cannot be empty')
+    throw new DocumentBuilderError('Update expression cannot be empty')
   }
 
   const setExpressions: string[] = []

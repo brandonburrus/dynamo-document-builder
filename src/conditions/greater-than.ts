@@ -8,5 +8,3 @@ export function greaterThan(value: ValueExpression): ComparisonExpressionTemplat
     value,
   }
 }
-
-export const gt = greaterThan

@@ -4,12 +4,11 @@ import type { EntitySchema } from '@/core/core-types'
 import type { Select } from '@aws-sdk/client-dynamodb'
 import type { ZodObject } from 'zod/v4'
 import { AttributeExpressionMap } from '@/attributes/attribute-map'
+import { QUERY_VALIDATION_CONCURRENCY } from '@/internal-constants'
 import { QueryCommand } from '@aws-sdk/lib-dynamodb'
 import { parseCondition } from '@/conditions'
 import { type BaseConfig, EntityCommand, type BaseResult } from '@/commands/base-entity-command'
 import pMap from 'p-map'
-
-const QUERY_VALIDATION_CONCURRENCY = 64
 
 export type QueryConfig<Schema extends ZodObject> = BaseConfig & {
   keyCondition: Condition
