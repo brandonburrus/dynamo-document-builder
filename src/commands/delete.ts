@@ -7,7 +7,7 @@ import type {
 } from '@aws-sdk/client-dynamodb'
 import type { ZodObject } from 'zod/v4'
 import { DeleteCommand } from '@aws-sdk/lib-dynamodb'
-import { type BaseConfig, EntityCommand, type BaseResult } from '@/commands/base-entity-command'
+import type { BaseConfig, BaseCommand, BaseResult } from '@/commands/base-command'
 
 export type DeleteConfig<Schema extends ZodObject> = BaseConfig & {
   key: Partial<EntitySchema<Schema>>
@@ -20,11 +20,10 @@ export type DeleteResult<Schema extends ZodObject> = BaseResult & {
   itemCollectionMetrics?: ItemCollectionMetrics
 }
 
-export class Delete<Schema extends ZodObject> extends EntityCommand<DeleteResult<Schema>, Schema> {
+export class Delete<Schema extends ZodObject> implements BaseCommand<DeleteResult<Schema>, Schema> {
   #config: DeleteConfig<Schema>
 
   constructor(config: DeleteConfig<Schema>) {
-    super()
     this.#config = config
   }
 

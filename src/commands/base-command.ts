@@ -3,8 +3,12 @@ import type { ConsumedCapacity, ReturnConsumedCapacity } from '@aws-sdk/client-d
 import type { ResponseMetadata } from '@aws-sdk/types'
 import type { ZodObject } from 'zod/v4'
 
-export abstract class EntityCommand<Output, Schema extends ZodObject> {
-  abstract execute(entity: DynamoEntity<Schema>): Promise<Output>
+export type BaseCommand<Output, Schema extends ZodObject> = {
+  execute(entity: DynamoEntity<Schema>): Promise<Output>
+}
+
+export type BasePaginatable<Output, Schema extends ZodObject> = {
+  executePaginated(entity: DynamoEntity<Schema>): AsyncGenerator<Output, void, unknown>
 }
 
 export type BaseConfig = {

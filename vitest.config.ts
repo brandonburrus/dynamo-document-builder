@@ -19,8 +19,6 @@ export default defineConfig({
         '**/*.d.ts',
         '**/index.ts',
         '**/*-types.ts',
-        // Abstract class - not a part of coverage
-        'src/commands/base-entity-command.ts',
       ],
     },
   },

@@ -9,7 +9,7 @@ import type { PutConfig } from '@/commands/put'
 import type { ZodObject } from 'zod/v4'
 import { PutCommand } from '@aws-sdk/lib-dynamodb'
 import { parseCondition } from '@/conditions/condition-parser'
-import { type BaseResult, EntityCommand } from '@/commands/base-entity-command'
+import type { BaseResult, BaseCommand } from '@/commands/base-command'
 
 export type ConditionalPutConfig<Schema extends ZodObject> = PutConfig<Schema> & {
   condition: Condition
@@ -21,14 +21,12 @@ export type ConditionalPutResult<Schema extends ZodObject> = BaseResult & {
   itemCollectionMetrics: ItemCollectionMetrics | undefined
 }
 
-export class ConditionalPut<Schema extends ZodObject> extends EntityCommand<
-  ConditionalPutResult<Schema>,
-  Schema
-> {
+export class ConditionalPut<Schema extends ZodObject>
+  implements BaseCommand<ConditionalPutResult<Schema>, Schema>
+{
   #config: ConditionalPutConfig<Schema>
 
   constructor(config: ConditionalPutConfig<Schema>) {
-    super()
     this.#config = config
   }
 

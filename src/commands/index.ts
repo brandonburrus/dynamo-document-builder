@@ -1,4 +1,4 @@
-export * from './base-entity-command'
+export * from './base-command'
 
 // Reads
 export * from './get'

@@ -11,7 +11,7 @@ import { AttributeExpressionMap } from '@/attributes'
 import { UpdateCommand } from '@aws-sdk/lib-dynamodb'
 import { parseCondition } from '@/conditions/condition-parser'
 import { parseUpdate } from '@/updates/update-parser'
-import { type BaseResult, EntityCommand } from '@/commands/base-entity-command'
+import type { BaseResult, BaseCommand } from '@/commands/base-command'
 
 export type ConditionalUpdateConfig<Schema extends ZodObject> = UpdateConfig<Schema> & {
   condition: Condition
@@ -23,14 +23,12 @@ export type ConditionalUpdateResult<Schema extends ZodObject> = BaseResult & {
   itemCollectionMetrics?: ItemCollectionMetrics
 }
 
-export class ConditionalUpdate<Schema extends ZodObject> extends EntityCommand<
-  ConditionalUpdateResult<Schema>,
-  Schema
-> {
+export class ConditionalUpdate<Schema extends ZodObject>
+  implements BaseCommand<ConditionalUpdateResult<Schema>, Schema>
+{
   #config: ConditionalUpdateConfig<Schema>
 
   constructor(config: ConditionalUpdateConfig<Schema>) {
-    super()
     this.#config = config
   }
 

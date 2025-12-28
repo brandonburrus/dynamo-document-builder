@@ -7,7 +7,7 @@ import type {
 } from '@aws-sdk/client-dynamodb'
 import type { ZodObject } from 'zod/v4'
 import { PutCommand } from '@aws-sdk/lib-dynamodb'
-import { type BaseConfig, EntityCommand, type BaseResult } from '@/commands/base-entity-command'
+import type { BaseConfig, BaseCommand, BaseResult } from '@/commands/base-command'
 
 export type PutConfig<Schema extends ZodObject> = BaseConfig & {
   item: EntitySchema<Schema>
@@ -20,11 +20,10 @@ export type PutResult<Schema extends ZodObject> = BaseResult & {
   itemCollectionMetrics?: ItemCollectionMetrics
 }
 
-export class Put<Schema extends ZodObject> extends EntityCommand<PutResult<Schema>, Schema> {
+export class Put<Schema extends ZodObject> implements BaseCommand<PutResult<Schema>, Schema> {
   #config: PutConfig<Schema>
 
   constructor(config: PutConfig<Schema>) {
-    super()
     this.#config = config
   }
 

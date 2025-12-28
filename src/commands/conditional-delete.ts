@@ -9,7 +9,7 @@ import type {
 import type { ZodObject } from 'zod/v4'
 import { DeleteCommand } from '@aws-sdk/lib-dynamodb'
 import { parseCondition } from '@/conditions/condition-parser'
-import { type BaseResult, EntityCommand } from '@/commands/base-entity-command'
+import type { BaseResult, BaseCommand } from '@/commands/base-command'
 
 export type ConditionalDeleteConfig<Schema extends ZodObject> = DeleteConfig<Schema> & {
   condition: Condition
@@ -21,14 +21,12 @@ export type ConditionalDeleteResult<Schema extends ZodObject> = BaseResult & {
   itemCollectionMetrics?: ItemCollectionMetrics
 }
 
-export class ConditionalDelete<Schema extends ZodObject> extends EntityCommand<
-  ConditionalDeleteResult<Schema>,
-  Schema
-> {
+export class ConditionalDelete<Schema extends ZodObject>
+  implements BaseCommand<ConditionalDeleteResult<Schema>, Schema>
+{
   #config: ConditionalDeleteConfig<Schema>
 
   constructor(config: ConditionalDeleteConfig<Schema>) {
-    super()
     this.#config = config
   }
 

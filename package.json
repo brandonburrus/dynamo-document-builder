@@ -31,11 +31,12 @@
     "format": "biome format --write",
     "lint": "biome check --fix",
     "prepare": "husky",
-    "prepublishOnly": "npm run build && npm run check && npm run test",
+    "prepublishOnly": "npm run build && npm run lint && npm run test",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit --project tests/tsconfig.json"
+    "test:typecheck": "tsc --noEmit --project tests/tsconfig.json"
   },
   "lint-staged": {
     "*.ts": [
@@ -72,7 +73,6 @@
     "lint-staged": "^16.1.0",
     "p-map": "^7.0.4",
     "rimraf": "^6.0.1",
-    "sinon": "^20.0.0",
     "ts-node": "^10.9.2",
     "typedoc": "^0.28.15",
     "typescript": "^5.8.3",

@@ -1,6 +1,6 @@
 import { GetCommand } from '@aws-sdk/lib-dynamodb'
 import type { DynamoEntity } from '@/core/entity'
-import { type BaseConfig, EntityCommand, type BaseResult } from '@/commands/base-entity-command'
+import type { BaseConfig, BaseCommand, BaseResult } from '@/commands/base-command'
 import type { ZodObject } from 'zod/v4'
 import type { EntitySchema } from '@/core/core-types'
 import type { KeyInput } from '@/core/key'
@@ -14,11 +14,10 @@ export type GetResult<Schema extends ZodObject> = BaseResult & {
   item: EntitySchema<Schema> | undefined
 }
 
-export class Get<Schema extends ZodObject> extends EntityCommand<GetResult<Schema>, Schema> {
+export class Get<Schema extends ZodObject> implements BaseCommand<GetResult<Schema>, Schema> {
   #config: GetConfig<Schema>
 
   constructor(config: GetConfig<Schema>) {
-    super()
     this.#config = config
   }
 

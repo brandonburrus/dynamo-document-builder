@@ -7,8 +7,14 @@ import { AttributeExpressionMap } from '@/attributes/attribute-map'
 import { PROJECTED_QUERY_VALIDATION_CONCURRENCY } from '@/internal-constants'
 import { parseCondition } from '@/conditions/condition-parser'
 import { parseProjection } from '@/projections/projection-parser'
-import { type BaseResult, EntityCommand } from '@/commands/base-entity-command'
-import { type NativeAttributeValue, QueryCommand } from '@aws-sdk/lib-dynamodb'
+import type { BaseResult, BaseCommand, BasePaginatable } from '@/commands/base-command'
+import {
+  type NativeAttributeValue,
+  QueryCommand,
+  type QueryCommandInput,
+  type QueryCommandOutput,
+  paginateQuery,
+} from '@aws-sdk/lib-dynamodb'
 import pMap from 'p-map'
 
 export type ProjectedQueryConfig<
@@ -29,20 +35,18 @@ export type ProjectedQueryResult<
   lastEvaluatedKey?: Partial<EntitySchema<Schema>> | undefined
 }
 
-export class ProjectedQuery<
-  Schema extends ZodObject,
-  ProjectedSchema extends ZodObject,
-> extends EntityCommand<ProjectedQueryResult<Schema, ProjectedSchema>, Schema> {
+export class ProjectedQuery<Schema extends ZodObject, ProjectedSchema extends ZodObject>
+  implements
+    BaseCommand<ProjectedQueryResult<Schema, ProjectedSchema>, Schema>,
+    BasePaginatable<ProjectedQueryResult<Schema, ProjectedSchema>, Schema>
+{
   #config: ProjectedQueryConfig<Schema, ProjectedSchema>
 
   constructor(config: ProjectedQueryConfig<Schema, ProjectedSchema>) {
-    super()
     this.#config = config
   }
 
-  public async execute(
-    entity: DynamoEntity<Schema>,
-  ): Promise<ProjectedQueryResult<Schema, ProjectedSchema>> {
+  public buildCommandInput(entity: DynamoEntity<Schema>): QueryCommandInput {
     const attributeExpressionMap = new AttributeExpressionMap()
 
     const keyConditionExpression = parseCondition(
@@ -63,7 +67,7 @@ export class ProjectedQuery<
       attributeExpressionMap,
     )
 
-    const query = new QueryCommand({
+    return {
       TableName: entity.table.tableName,
       KeyConditionExpression: keyConditionExpression,
       FilterExpression: filterExpression,
@@ -78,29 +82,30 @@ export class ProjectedQuery<
         | Record<string, NativeAttributeValue>
         | undefined,
       ReturnConsumedCapacity: this.#config.returnConsumedCapacity,
-    })
+    } satisfies QueryCommandInput
+  }
 
-    const queryResult = await entity.table.documentClient.send(query, {
-      abortSignal: this.#config.abortController?.signal,
-      requestTimeout: this.#config.timeoutMs,
-    })
-
-    let items: EntitySchema<ProjectedSchema>[] = []
-    if (queryResult.Items) {
-      if (this.#config.skipValidation) {
-        items = queryResult.Items as EntitySchema<ProjectedSchema>[]
-      } else {
-        items = await pMap(
-          queryResult.Items,
-          item => this.#config.projectionSchema.parseAsync(item),
-          {
-            concurrency:
-              this.#config.validationConcurrency ?? PROJECTED_QUERY_VALIDATION_CONCURRENCY,
-          },
-        )
-      }
+  public async validateItems(
+    items: Record<string, NativeAttributeValue>[] | undefined,
+  ): Promise<EntitySchema<ProjectedSchema>[]> {
+    if (!items) {
+      return []
     }
 
+    if (this.#config.skipValidation) {
+      return items as EntitySchema<ProjectedSchema>[]
+    }
+
+    return pMap(items, item => this.#config.projectionSchema.parseAsync(item), {
+      concurrency: this.#config.validationConcurrency ?? PROJECTED_QUERY_VALIDATION_CONCURRENCY,
+      signal: this.#config.abortController?.signal,
+    })
+  }
+
+  public buildResult(
+    items: EntitySchema<ProjectedSchema>[],
+    queryResult: QueryCommandOutput,
+  ): ProjectedQueryResult<Schema, ProjectedSchema> {
     return {
       items,
       count: queryResult.Count ?? 0,
@@ -108,6 +113,39 @@ export class ProjectedQuery<
       lastEvaluatedKey: queryResult.LastEvaluatedKey as Partial<EntitySchema<Schema>> | undefined,
       responseMetadata: queryResult.$metadata,
       consumedCapacity: queryResult.ConsumedCapacity,
+    }
+  }
+
+  public async execute(
+    entity: DynamoEntity<Schema>,
+  ): Promise<ProjectedQueryResult<Schema, ProjectedSchema>> {
+    const query = new QueryCommand(this.buildCommandInput(entity))
+    const queryResult = await entity.table.documentClient.send(query, {
+      abortSignal: this.#config.abortController?.signal,
+      requestTimeout: this.#config.timeoutMs,
+    })
+    const items = await this.validateItems(queryResult.Items)
+    return this.buildResult(items, queryResult)
+  }
+
+  public async *executePaginated(
+    entity: DynamoEntity<Schema>,
+  ): AsyncGenerator<ProjectedQueryResult<Schema, ProjectedSchema>, void, unknown> {
+    const paginator = paginateQuery(
+      {
+        client: entity.table.documentClient,
+        pageSize: this.#config.pageSize,
+      },
+      this.buildCommandInput(entity),
+      {
+        abortSignal: this.#config.abortController?.signal,
+        requestTimeout: this.#config.timeoutMs,
+      },
+    )
+
+    for await (const page of paginator) {
+      const items = await this.validateItems(page.Items)
+      yield this.buildResult(items, page)
     }
   }
 }

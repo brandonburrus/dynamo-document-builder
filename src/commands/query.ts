@@ -5,9 +5,15 @@ import type { Select } from '@aws-sdk/client-dynamodb'
 import type { ZodObject } from 'zod/v4'
 import { AttributeExpressionMap } from '@/attributes/attribute-map'
 import { QUERY_VALIDATION_CONCURRENCY } from '@/internal-constants'
-import { QueryCommand } from '@aws-sdk/lib-dynamodb'
+import {
+  QueryCommand,
+  type QueryCommandInput,
+  paginateQuery,
+  type NativeAttributeValue,
+  type QueryCommandOutput,
+} from '@aws-sdk/lib-dynamodb'
 import { parseCondition } from '@/conditions'
-import { type BaseConfig, EntityCommand, type BaseResult } from '@/commands/base-entity-command'
+import type { BaseConfig, BaseCommand, BasePaginatable, BaseResult } from '@/commands/base-command'
 import pMap from 'p-map'
 
 export type QueryConfig<Schema extends ZodObject> = BaseConfig & {
@@ -20,6 +26,7 @@ export type QueryConfig<Schema extends ZodObject> = BaseConfig & {
   queryIndexName?: string
   reverseIndexScan?: boolean
   exclusiveStartKey?: Partial<EntitySchema<Schema>>
+  pageSize?: number
 }
 
 export type QueryResult<Schema extends ZodObject> = BaseResult & {
@@ -29,15 +36,16 @@ export type QueryResult<Schema extends ZodObject> = BaseResult & {
   lastEvaluatedKey?: Partial<EntitySchema<Schema>> | undefined
 }
 
-export class Query<Schema extends ZodObject> extends EntityCommand<QueryResult<Schema>, Schema> {
+export class Query<Schema extends ZodObject>
+  implements BaseCommand<QueryResult<Schema>, Schema>, BasePaginatable<QueryResult<Schema>, Schema>
+{
   #config: QueryConfig<Schema>
 
   constructor(config: QueryConfig<Schema>) {
-    super()
     this.#config = config
   }
 
-  public async execute(entity: DynamoEntity<Schema>): Promise<QueryResult<Schema>> {
+  public buildCommandInput(entity: DynamoEntity<Schema>): QueryCommandInput {
     const attributeExpressionMap = new AttributeExpressionMap()
 
     const keyConditionExpression = parseCondition(
@@ -53,7 +61,7 @@ export class Query<Schema extends ZodObject> extends EntityCommand<QueryResult<S
       ).conditionExpression
     }
 
-    const query = new QueryCommand({
+    return {
       TableName: entity.table.tableName,
       KeyConditionExpression: keyConditionExpression,
       FilterExpression: filterExpression,
@@ -65,24 +73,29 @@ export class Query<Schema extends ZodObject> extends EntityCommand<QueryResult<S
       ScanIndexForward: !this.#config.reverseIndexScan,
       ExclusiveStartKey: this.#config.exclusiveStartKey,
       ReturnConsumedCapacity: this.#config.returnConsumedCapacity,
-    })
+    } satisfies QueryCommandInput
+  }
 
-    const queryResult = await entity.table.documentClient.send(query, {
-      abortSignal: this.#config.abortController?.signal,
-      requestTimeout: this.#config.timeoutMs,
-    })
-
-    let items: EntitySchema<Schema>[] = []
-    if (queryResult.Items) {
-      if (this.#config.skipValidation) {
-        items = queryResult.Items as EntitySchema<Schema>[]
-      } else {
-        items = await pMap(queryResult.Items, item => entity.schema.parseAsync(item), {
-          concurrency: this.#config.validationConcurrency ?? QUERY_VALIDATION_CONCURRENCY,
-        })
-      }
+  public async validateItems(
+    entity: DynamoEntity<Schema>,
+    items: Record<string, NativeAttributeValue>[] | undefined,
+  ): Promise<EntitySchema<Schema>[]> {
+    if (!items) {
+      return []
     }
+    if (this.#config.skipValidation) {
+      return items as EntitySchema<Schema>[]
+    }
+    return pMap(items, item => entity.schema.parseAsync(item), {
+      concurrency: this.#config.validationConcurrency ?? QUERY_VALIDATION_CONCURRENCY,
+      signal: this.#config.abortController?.signal,
+    })
+  }
 
+  public buildResult(
+    items: EntitySchema<Schema>[],
+    queryResult: QueryCommandOutput,
+  ): QueryResult<Schema> {
     return {
       items,
       count: queryResult.Count ?? 0,
@@ -90,6 +103,36 @@ export class Query<Schema extends ZodObject> extends EntityCommand<QueryResult<S
       lastEvaluatedKey: queryResult.LastEvaluatedKey as Partial<EntitySchema<Schema>> | undefined,
       responseMetadata: queryResult.$metadata,
       consumedCapacity: queryResult.ConsumedCapacity,
+    }
+  }
+
+  public async execute(entity: DynamoEntity<Schema>): Promise<QueryResult<Schema>> {
+    const query = new QueryCommand(this.buildCommandInput(entity))
+    const queryResult = await entity.table.documentClient.send(query, {
+      abortSignal: this.#config.abortController?.signal,
+      requestTimeout: this.#config.timeoutMs,
+    })
+    const items = await this.validateItems(entity, queryResult.Items)
+    return this.buildResult(items, queryResult)
+  }
+
+  public async *executePaginated(
+    entity: DynamoEntity<Schema>,
+  ): AsyncGenerator<QueryResult<Schema>, void, unknown> {
+    const paginator = paginateQuery(
+      {
+        client: entity.table.documentClient,
+        pageSize: this.#config.pageSize,
+      },
+      this.buildCommandInput(entity),
+      {
+        abortSignal: this.#config.abortController?.signal,
+        requestTimeout: this.#config.timeoutMs,
+      },
+    )
+    for await (const page of paginator) {
+      const items = await this.validateItems(entity, page.Items)
+      yield this.buildResult(items, page)
     }
   }
 }

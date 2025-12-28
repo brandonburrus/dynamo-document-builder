@@ -1,4 +1,4 @@
-import type { EntityCommand } from '@/commands/base-entity-command'
+import type { BaseCommand, BasePaginatable } from '@/commands/base-command'
 import type {
   DynamoKeyableValue,
   DynamoKeyBuilder,
@@ -145,8 +145,16 @@ export class DynamoEntity<Schema extends ZodObject> {
   }
 
   public async send<CommandOutput>(
-    entityCommand: EntityCommand<CommandOutput, Schema>,
+    command: BaseCommand<CommandOutput, Schema>,
   ): Promise<CommandOutput> {
-    return await entityCommand.execute(this)
+    return await command.execute(this)
+  }
+
+  public async *paginate<CommandOutput>(
+    paginatable: BasePaginatable<CommandOutput, Schema>,
+  ): AsyncGenerator<CommandOutput, void, unknown> {
+    for await (const page of paginatable.executePaginated(this)) {
+      yield page
+    }
   }
 }

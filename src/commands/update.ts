@@ -9,7 +9,7 @@ import type { UpdateValues } from '@/updates/update-types'
 import type { ZodObject } from 'zod/v4'
 import { UpdateCommand } from '@aws-sdk/lib-dynamodb'
 import { parseUpdate } from '@/updates/update-parser'
-import { type BaseConfig, EntityCommand, type BaseResult } from '@/commands/base-entity-command'
+import type { BaseConfig, BaseCommand, BaseResult } from '@/commands/base-command'
 
 export type UpdateConfig<Schema extends ZodObject> = BaseConfig & {
   key: Partial<EntitySchema<Schema>>
@@ -23,11 +23,10 @@ export type UpdateResult<Schema extends ZodObject> = BaseResult & {
   itemCollectionMetrics?: ItemCollectionMetrics
 }
 
-export class Update<Schema extends ZodObject> extends EntityCommand<UpdateResult<Schema>, Schema> {
+export class Update<Schema extends ZodObject> implements BaseCommand<UpdateResult<Schema>, Schema> {
   #config: UpdateConfig<Schema>
 
   constructor(config: UpdateConfig<Schema>) {
-    super()
     this.#config = config
   }
 

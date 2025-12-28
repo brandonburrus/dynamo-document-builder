@@ -5,7 +5,7 @@ import type { Projection } from '@/projections/projection-types'
 import type { ZodObject } from 'zod/v4'
 import { GetCommand } from '@aws-sdk/lib-dynamodb'
 import { parseProjection } from '@/projections/projection-parser'
-import { type BaseResult, EntityCommand } from '@/commands/base-entity-command'
+import type { BaseResult, BaseCommand } from '@/commands/base-command'
 
 export type ProjectedGetConfig<
   Schema extends ZodObject,
@@ -19,14 +19,12 @@ export type ProjectedGetResult<ProjectionSchema extends ZodObject> = BaseResult 
   item: EntitySchema<ProjectionSchema> | undefined
 }
 
-export class ProjectedGet<
-  Schema extends ZodObject,
-  ProjectionSchema extends ZodObject,
-> extends EntityCommand<ProjectedGetResult<ProjectionSchema>, Schema> {
+export class ProjectedGet<Schema extends ZodObject, ProjectionSchema extends ZodObject>
+  implements BaseCommand<ProjectedGetResult<ProjectionSchema>, Schema>
+{
   #config: ProjectedGetConfig<Schema, ProjectionSchema>
 
   constructor(config: ProjectedGetConfig<Schema, ProjectionSchema>) {
-    super()
     this.#config = config
   }
 
