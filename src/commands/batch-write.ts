@@ -1,11 +1,11 @@
-import { BatchWriteCommand } from '@aws-sdk/lib-dynamodb'
-import type { DynamoEntity } from '@/core/entity'
 import type { BaseConfig, BaseCommand, BaseResult } from '@/commands/base-command'
-import type { ZodObject } from 'zod/v4'
+import type { DynamoEntity } from '@/core/entity'
 import type { EntitySchema } from '@/core/core-types'
-import pMap from 'p-map'
-import { BATCH_WRITE_VALIDATION_CONCURRENCY } from '@/internal-constants'
 import type { ItemCollectionMetrics, ReturnItemCollectionMetrics } from '@aws-sdk/client-dynamodb'
+import type { ZodObject } from 'zod/v4'
+import { BATCH_WRITE_VALIDATION_CONCURRENCY } from '@/internal-constants'
+import { BatchWriteCommand } from '@aws-sdk/lib-dynamodb'
+import pMap from 'p-map'
 
 export type BatchWriteConfig<Schema extends ZodObject> = BaseConfig & {
   puts?: Array<EntitySchema<Schema>>

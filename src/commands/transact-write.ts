@@ -1,15 +1,15 @@
-import type { DynamoEntity } from '@/core/entity'
+import type { BaseConfig, BaseCommand, WriteTransactable } from '@/commands/base-command'
 import type {
   ConsumedCapacity,
   ItemCollectionMetrics,
   ReturnItemCollectionMetrics,
 } from '@aws-sdk/client-dynamodb'
-import type { ZodObject } from 'zod/v4'
-import { TransactWriteCommand } from '@aws-sdk/lib-dynamodb'
-import type { BaseConfig, BaseCommand, WriteTransactable } from '@/commands/base-command'
+import type { DynamoEntity } from '@/core/entity'
 import type { ResponseMetadata } from '@aws-sdk/types'
-import pMap from 'p-map'
+import type { ZodObject } from 'zod/v4'
 import { TRANSACTION_WRITE_VALIDATION_CONCURRENCY } from '@/internal-constants'
+import { TransactWriteCommand } from '@aws-sdk/lib-dynamodb'
+import pMap from 'p-map'
 
 export type TransactWriteConfig<Schema extends ZodObject> = BaseConfig & {
   writes: WriteTransactable<Schema>[]

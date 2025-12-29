@@ -1,8 +1,9 @@
-import { BatchGetCommand } from '@aws-sdk/lib-dynamodb'
-import type { DynamoEntity } from '@/core/entity'
 import type { BaseConfig, BaseCommand, BaseResult } from '@/commands/base-command'
-import type { ZodObject } from 'zod/v4'
+import type { DynamoEntity } from '@/core/entity'
 import type { EntitySchema } from '@/core/core-types'
+import type { ZodObject } from 'zod/v4'
+import { BATCH_GET_VALIDATION_CONCURRENCY } from '@/internal-constants'
+import { BatchGetCommand } from '@aws-sdk/lib-dynamodb'
 import pMap from 'p-map'
 
 export type BatchGetConfig<Schema extends ZodObject> = BaseConfig & {
@@ -48,7 +49,7 @@ export class BatchGet<Schema extends ZodObject>
         items = rawItems as Array<EntitySchema<Schema>>
       } else {
         items = await pMap(rawItems, item => entity.schema.parseAsync(item), {
-          concurrency: 64,
+          concurrency: BATCH_GET_VALIDATION_CONCURRENCY,
           signal: this.#config.abortController?.signal,
         })
       }
