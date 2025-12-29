@@ -36,10 +36,8 @@ export type ScanResult<Schema extends ZodObject> = BaseResult & {
   lastEvaluatedKey?: Partial<EntitySchema<Schema>> | undefined
 }
 
-export class Scan<Schema extends ZodObject> 
-  implements 
-    BaseCommand<ScanResult<Schema>, Schema>,
-    BasePaginatable<ScanResult<Schema>, Schema>
+export class Scan<Schema extends ZodObject>
+  implements BaseCommand<ScanResult<Schema>, Schema>, BasePaginatable<ScanResult<Schema>, Schema>
 {
   #config: ScanConfig<Schema>
 
@@ -75,7 +73,7 @@ export class Scan<Schema extends ZodObject>
 
   public async validateItems(
     entity: DynamoEntity<Schema>,
-    items: Record<string, NativeAttributeValue>[] | undefined
+    items: Record<string, NativeAttributeValue>[] | undefined,
   ): Promise<EntitySchema<Schema>[]> {
     if (!items) {
       return []
@@ -91,7 +89,7 @@ export class Scan<Schema extends ZodObject>
 
   public buildResult(
     items: EntitySchema<Schema>[],
-    scanResult: ScanCommandOutput
+    scanResult: ScanCommandOutput,
   ): ScanResult<Schema> {
     return {
       items,
@@ -125,7 +123,7 @@ export class Scan<Schema extends ZodObject>
       {
         abortSignal: this.#config.abortController?.signal,
         requestTimeout: this.#config.timeoutMs,
-      }
+      },
     )
 
     for await (const page of paginator) {

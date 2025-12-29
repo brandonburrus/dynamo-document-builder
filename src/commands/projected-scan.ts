@@ -34,7 +34,7 @@ export type ProjectedScanResult<
 }
 
 export class ProjectedScan<Schema extends ZodObject, ProjectedSchema extends ZodObject>
-  implements 
+  implements
     BaseCommand<ProjectedScanResult<Schema, ProjectedSchema>, Schema>,
     BasePaginatable<ProjectedScanResult<Schema, ProjectedSchema>, Schema>
 {
@@ -44,9 +44,7 @@ export class ProjectedScan<Schema extends ZodObject, ProjectedSchema extends Zod
     this.#config = config
   }
 
-  public buildCommandInput(
-    entity: DynamoEntity<Schema>,
-  ): ScanCommandInput {
+  public buildCommandInput(entity: DynamoEntity<Schema>): ScanCommandInput {
     const attributeExpressionMap = new AttributeExpressionMap()
 
     let filterExpression: string | undefined
@@ -74,7 +72,7 @@ export class ProjectedScan<Schema extends ZodObject, ProjectedSchema extends Zod
       TotalSegments: this.#config.totalSegments,
       ExclusiveStartKey: this.#config.exclusiveStartKey,
       ReturnConsumedCapacity: this.#config.returnConsumedCapacity,
-}      satisfies ScanCommandInput
+    } satisfies ScanCommandInput
   }
 
   public async validateItems(
@@ -86,15 +84,10 @@ export class ProjectedScan<Schema extends ZodObject, ProjectedSchema extends Zod
     if (this.#config.skipValidation) {
       return items as EntitySchema<ProjectedSchema>[]
     }
-    return pMap(
-      items,
-      item => this.#config.projectionSchema.parseAsync(item),
-      {
-        concurrency:
-          this.#config.validationConcurrency ?? PROJECTED_SCAN_VALIDATION_CONCURRENCY,
-        signal: this.#config.abortController?.signal,
-      },
-    )
+    return pMap(items, item => this.#config.projectionSchema.parseAsync(item), {
+      concurrency: this.#config.validationConcurrency ?? PROJECTED_SCAN_VALIDATION_CONCURRENCY,
+      signal: this.#config.abortController?.signal,
+    })
   }
 
   public buildResult(
@@ -105,9 +98,7 @@ export class ProjectedScan<Schema extends ZodObject, ProjectedSchema extends Zod
       items,
       count: scanResult.Count ?? 0,
       scannedCount: scanResult.ScannedCount ?? 0,
-      lastEvaluatedKey: scanResult.LastEvaluatedKey as
-        | Partial<EntitySchema<Schema>>
-        | undefined,
+      lastEvaluatedKey: scanResult.LastEvaluatedKey as Partial<EntitySchema<Schema>> | undefined,
       responseMetadata: scanResult.$metadata,
       consumedCapacity: scanResult.ConsumedCapacity,
     }
