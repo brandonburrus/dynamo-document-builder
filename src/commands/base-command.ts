@@ -1,3 +1,4 @@
+import type { TransactWriteOperation } from '@/core/core-types'
 import type { DynamoEntity } from '@/core/entity'
 import type { ConsumedCapacity, ReturnConsumedCapacity } from '@aws-sdk/client-dynamodb'
 import type { ResponseMetadata } from '@aws-sdk/types'
@@ -9,6 +10,10 @@ export type BaseCommand<Output, Schema extends ZodObject> = {
 
 export type BasePaginatable<Output, Schema extends ZodObject> = {
   executePaginated(entity: DynamoEntity<Schema>): AsyncGenerator<Output, void, unknown>
+}
+
+export type WriteTransactable<Schema extends ZodObject> = {
+  prepareWriteTransaction(entity: DynamoEntity<Schema>): Promise<TransactWriteOperation>
 }
 
 export type BaseConfig = {

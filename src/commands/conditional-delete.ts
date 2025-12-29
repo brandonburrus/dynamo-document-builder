@@ -1,7 +1,7 @@
 import type { Condition } from '@/conditions/condition-types'
 import type { DeleteConfig } from '@/commands/delete'
 import type { DynamoEntity } from '@/core/entity'
-import type { EntitySchema } from '@/core/core-types'
+import type { EntitySchema, TransactWriteOperation } from '@/core/core-types'
 import type {
   ItemCollectionMetrics,
   ReturnValuesOnConditionCheckFailure,
@@ -9,7 +9,7 @@ import type {
 import type { ZodObject } from 'zod/v4'
 import { DeleteCommand } from '@aws-sdk/lib-dynamodb'
 import { parseCondition } from '@/conditions/condition-parser'
-import type { BaseResult, BaseCommand } from '@/commands/base-command'
+import type { BaseResult, BaseCommand, WriteTransactable } from '@/commands/base-command'
 
 export type ConditionalDeleteConfig<Schema extends ZodObject> = DeleteConfig<Schema> & {
   condition: Condition
@@ -22,7 +22,7 @@ export type ConditionalDeleteResult<Schema extends ZodObject> = BaseResult & {
 }
 
 export class ConditionalDelete<Schema extends ZodObject>
-  implements BaseCommand<ConditionalDeleteResult<Schema>, Schema>
+  implements BaseCommand<ConditionalDeleteResult<Schema>, Schema>, WriteTransactable<Schema>
 {
   #config: ConditionalDeleteConfig<Schema>
 
@@ -66,6 +66,21 @@ export class ConditionalDelete<Schema extends ZodObject>
       responseMetadata: deleteResult.$metadata,
       consumedCapacity: deleteResult.ConsumedCapacity,
       itemCollectionMetrics: deleteResult.ItemCollectionMetrics,
+    }
+  }
+
+  public async prepareWriteTransaction(
+    entity: DynamoEntity<Schema>,
+  ): Promise<TransactWriteOperation> {
+    const { conditionExpression, attributeExpressionMap } = parseCondition(this.#config.condition)
+    return {
+      Delete: {
+        TableName: entity.table.tableName,
+        Key: entity.buildPrimaryKey(this.#config.key),
+        ConditionExpression: conditionExpression,
+        ...attributeExpressionMap.toDynamoAttributeExpression(),
+        ReturnValuesOnConditionCheckFailure: this.#config.returnValuesOnConditionCheckFailure,
+      },
     }
   }
 }

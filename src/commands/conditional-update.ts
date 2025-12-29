@@ -1,6 +1,6 @@
 import type { Condition } from '@/conditions/condition-types'
 import type { DynamoEntity } from '@/core/entity'
-import type { EntitySchema } from '@/core/core-types'
+import type { EntitySchema, TransactWriteOperation } from '@/core/core-types'
 import type {
   ItemCollectionMetrics,
   ReturnValuesOnConditionCheckFailure,
@@ -11,7 +11,7 @@ import { AttributeExpressionMap } from '@/attributes'
 import { UpdateCommand } from '@aws-sdk/lib-dynamodb'
 import { parseCondition } from '@/conditions/condition-parser'
 import { parseUpdate } from '@/updates/update-parser'
-import type { BaseResult, BaseCommand } from '@/commands/base-command'
+import type { BaseResult, BaseCommand, WriteTransactable } from '@/commands/base-command'
 
 export type ConditionalUpdateConfig<Schema extends ZodObject> = UpdateConfig<Schema> & {
   condition: Condition
@@ -24,7 +24,7 @@ export type ConditionalUpdateResult<Schema extends ZodObject> = BaseResult & {
 }
 
 export class ConditionalUpdate<Schema extends ZodObject>
-  implements BaseCommand<ConditionalUpdateResult<Schema>, Schema>
+  implements BaseCommand<ConditionalUpdateResult<Schema>, Schema>, WriteTransactable<Schema>
 {
   #config: ConditionalUpdateConfig<Schema>
 
@@ -69,6 +69,24 @@ export class ConditionalUpdate<Schema extends ZodObject>
       responseMetadata: updateResult.$metadata,
       consumedCapacity: updateResult.ConsumedCapacity,
       itemCollectionMetrics: updateResult.ItemCollectionMetrics,
+    }
+  }
+
+  public async prepareWriteTransaction(
+    entity: DynamoEntity<Schema>,
+  ): Promise<TransactWriteOperation> {
+    const attributeExpressionMap = new AttributeExpressionMap()
+    const { updateExpression } = parseUpdate(this.#config.update, attributeExpressionMap)
+    const { conditionExpression } = parseCondition(this.#config.condition, attributeExpressionMap)
+    return {
+      Update: {
+        TableName: entity.table.tableName,
+        Key: entity.buildPrimaryKey(this.#config.key),
+        UpdateExpression: updateExpression,
+        ConditionExpression: conditionExpression,
+        ...attributeExpressionMap.toDynamoAttributeExpression(),
+        ReturnValuesOnConditionCheckFailure: this.#config.returnValuesOnConditionCheckFailure,
+      },
     }
   }
 }

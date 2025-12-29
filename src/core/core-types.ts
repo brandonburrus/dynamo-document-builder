@@ -1,5 +1,13 @@
 import type { output as ZodOutput, input as ZodInput, ZodObject } from 'zod/v4'
 import type { DynamoEntity } from '@/core/entity'
+import type {
+  ConditionCheck,
+  Delete,
+  Put,
+  TransactWriteItem,
+  Update,
+} from '@aws-sdk/client-dynamodb'
+import type { NativeAttributeValue } from '@aws-sdk/lib-dynamodb'
 
 // This is the actual type of the entity items dervied from the zod schema
 export type EntitySchema<SchemaDef extends ZodObject> = ZodOutput<SchemaDef>
@@ -23,5 +31,35 @@ export type LocalSecondaryIndexKeyName = {
 }
 
 export type NamedGlobalSecondaryIndexKeyNames = Record<IndexName, GlobalSecondaryIndexKeyName>
-
 export type NamedLocalSecondaryIndexKeyNames = Record<IndexName, LocalSecondaryIndexKeyName>
+
+// https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/Package/-aws-sdk-lib-dynamodb/TypeAlias/TransactWriteCommandInput/
+export type TransactWriteOperation = Omit<
+  TransactWriteItem,
+  'ConditionCheck' | 'Put' | 'Delete' | 'Update'
+> & {
+  ConditionCheck?:
+    | (Omit<ConditionCheck, 'Key' | 'ExpressionAttributeValues'> & {
+        Key: Record<string, NativeAttributeValue> | undefined
+        ExpressionAttributeValues?: Record<string, NativeAttributeValue> | undefined
+      })
+    | undefined
+  Put?:
+    | (Omit<Put, 'Item' | 'ExpressionAttributeValues'> & {
+        Item: Record<string, NativeAttributeValue> | undefined
+        ExpressionAttributeValues?: Record<string, NativeAttributeValue> | undefined
+      })
+    | undefined
+  Delete?:
+    | (Omit<Delete, 'Key' | 'ExpressionAttributeValues'> & {
+        Key: Record<string, NativeAttributeValue> | undefined
+        ExpressionAttributeValues?: Record<string, NativeAttributeValue> | undefined
+      })
+    | undefined
+  Update?:
+    | (Omit<Update, 'Key' | 'ExpressionAttributeValues'> & {
+        Key: Record<string, NativeAttributeValue> | undefined
+        ExpressionAttributeValues?: Record<string, NativeAttributeValue> | undefined
+      })
+    | undefined
+}

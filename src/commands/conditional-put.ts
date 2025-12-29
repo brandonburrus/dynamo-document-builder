@@ -1,6 +1,6 @@
 import type { Condition } from '@/conditions/condition-types'
 import type { DynamoEntity } from '@/core/entity'
-import type { EntitySchema } from '@/core/core-types'
+import type { EntitySchema, TransactWriteOperation } from '@/core/core-types'
 import type {
   ItemCollectionMetrics,
   ReturnValuesOnConditionCheckFailure,
@@ -9,7 +9,7 @@ import type { PutConfig } from '@/commands/put'
 import type { ZodObject } from 'zod/v4'
 import { PutCommand } from '@aws-sdk/lib-dynamodb'
 import { parseCondition } from '@/conditions/condition-parser'
-import type { BaseResult, BaseCommand } from '@/commands/base-command'
+import type { BaseResult, BaseCommand, WriteTransactable } from '@/commands/base-command'
 
 export type ConditionalPutConfig<Schema extends ZodObject> = PutConfig<Schema> & {
   condition: Condition
@@ -22,7 +22,7 @@ export type ConditionalPutResult<Schema extends ZodObject> = BaseResult & {
 }
 
 export class ConditionalPut<Schema extends ZodObject>
-  implements BaseCommand<ConditionalPutResult<Schema>, Schema>
+  implements BaseCommand<ConditionalPutResult<Schema>, Schema>, WriteTransactable<Schema>
 {
   #config: ConditionalPutConfig<Schema>
 
@@ -30,19 +30,24 @@ export class ConditionalPut<Schema extends ZodObject>
     this.#config = config
   }
 
-  public async execute(entity: DynamoEntity<Schema>): Promise<ConditionalPutResult<Schema>> {
+  public async buildItem(entity: DynamoEntity<Schema>) {
     const encodedData = this.#config.skipValidation
       ? this.#config.item
       : await entity.schema.encodeAsync(this.#config.item)
 
+    return {
+      ...encodedData,
+      ...entity.buildAllKeys(this.#config.item),
+    }
+  }
+
+  public async execute(entity: DynamoEntity<Schema>): Promise<ConditionalPutResult<Schema>> {
+    const item = await this.buildItem(entity)
     const { conditionExpression, attributeExpressionMap } = parseCondition(this.#config.condition)
 
     const put = new PutCommand({
       TableName: entity.table.tableName,
-      Item: {
-        ...encodedData,
-        ...entity.buildAllKeys(this.#config.item),
-      },
+      Item: item,
       ConditionExpression: conditionExpression,
       ...attributeExpressionMap.toDynamoAttributeExpression(),
       ReturnValues: this.#config.returnValues,
@@ -74,6 +79,22 @@ export class ConditionalPut<Schema extends ZodObject>
       responseMetadata: putResult.$metadata,
       consumedCapacity: putResult.ConsumedCapacity,
       itemCollectionMetrics: putResult.ItemCollectionMetrics,
+    }
+  }
+
+  public async prepareWriteTransaction(
+    entity: DynamoEntity<Schema>,
+  ): Promise<TransactWriteOperation> {
+    const item = await this.buildItem(entity)
+    const { conditionExpression, attributeExpressionMap } = parseCondition(this.#config.condition)
+    return {
+      Put: {
+        TableName: entity.table.tableName,
+        Item: item,
+        ConditionExpression: conditionExpression,
+        ...attributeExpressionMap.toDynamoAttributeExpression(),
+        ReturnValuesOnConditionCheckFailure: this.#config.returnValuesOnConditionCheckFailure,
+      },
     }
   }
 }

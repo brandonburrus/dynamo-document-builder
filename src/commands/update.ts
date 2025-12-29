@@ -1,5 +1,5 @@
 import type { DynamoEntity } from '@/core/entity'
-import type { EntitySchema } from '@/core/core-types'
+import type { EntitySchema, TransactWriteOperation } from '@/core/core-types'
 import type {
   ItemCollectionMetrics,
   ReturnItemCollectionMetrics,
@@ -9,7 +9,12 @@ import type { UpdateValues } from '@/updates/update-types'
 import type { ZodObject } from 'zod/v4'
 import { UpdateCommand } from '@aws-sdk/lib-dynamodb'
 import { parseUpdate } from '@/updates/update-parser'
-import type { BaseConfig, BaseCommand, BaseResult } from '@/commands/base-command'
+import type {
+  BaseConfig,
+  BaseCommand,
+  BaseResult,
+  WriteTransactable,
+} from '@/commands/base-command'
 
 export type UpdateConfig<Schema extends ZodObject> = BaseConfig & {
   key: Partial<EntitySchema<Schema>>
@@ -23,7 +28,9 @@ export type UpdateResult<Schema extends ZodObject> = BaseResult & {
   itemCollectionMetrics?: ItemCollectionMetrics
 }
 
-export class Update<Schema extends ZodObject> implements BaseCommand<UpdateResult<Schema>, Schema> {
+export class Update<Schema extends ZodObject>
+  implements BaseCommand<UpdateResult<Schema>, Schema>, WriteTransactable<Schema>
+{
   #config: UpdateConfig<Schema>
 
   constructor(config: UpdateConfig<Schema>) {
@@ -62,6 +69,20 @@ export class Update<Schema extends ZodObject> implements BaseCommand<UpdateResul
       responseMetadata: updateResult.$metadata,
       consumedCapacity: updateResult.ConsumedCapacity,
       itemCollectionMetrics: updateResult.ItemCollectionMetrics,
+    }
+  }
+
+  public async prepareWriteTransaction(
+    entity: DynamoEntity<Schema>,
+  ): Promise<TransactWriteOperation> {
+    const { updateExpression, attributeExpressionMap } = parseUpdate(this.#config.update)
+    return {
+      Update: {
+        TableName: entity.table.tableName,
+        Key: entity.buildPrimaryKey(this.#config.key),
+        UpdateExpression: updateExpression,
+        ...attributeExpressionMap.toDynamoAttributeExpression(),
+      },
     }
   }
 }

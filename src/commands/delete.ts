@@ -1,5 +1,5 @@
 import type { DynamoEntity } from '@/core/entity'
-import type { EntitySchema } from '@/core/core-types'
+import type { EntitySchema, TransactWriteOperation } from '@/core/core-types'
 import type {
   ItemCollectionMetrics,
   ReturnItemCollectionMetrics,
@@ -7,7 +7,12 @@ import type {
 } from '@aws-sdk/client-dynamodb'
 import type { ZodObject } from 'zod/v4'
 import { DeleteCommand } from '@aws-sdk/lib-dynamodb'
-import type { BaseConfig, BaseCommand, BaseResult } from '@/commands/base-command'
+import type {
+  BaseConfig,
+  BaseCommand,
+  BaseResult,
+  WriteTransactable,
+} from '@/commands/base-command'
 
 export type DeleteConfig<Schema extends ZodObject> = BaseConfig & {
   key: Partial<EntitySchema<Schema>>
@@ -20,7 +25,9 @@ export type DeleteResult<Schema extends ZodObject> = BaseResult & {
   itemCollectionMetrics?: ItemCollectionMetrics
 }
 
-export class Delete<Schema extends ZodObject> implements BaseCommand<DeleteResult<Schema>, Schema> {
+export class Delete<Schema extends ZodObject>
+  implements BaseCommand<DeleteResult<Schema>, Schema>, WriteTransactable<Schema>
+{
   #config: DeleteConfig<Schema>
 
   constructor(config: DeleteConfig<Schema>) {
@@ -55,6 +62,17 @@ export class Delete<Schema extends ZodObject> implements BaseCommand<DeleteResul
       responseMetadata: deleteResult.$metadata,
       consumedCapacity: deleteResult.ConsumedCapacity,
       itemCollectionMetrics: deleteResult.ItemCollectionMetrics,
+    }
+  }
+
+  public async prepareWriteTransaction(
+    entity: DynamoEntity<Schema>,
+  ): Promise<TransactWriteOperation> {
+    return {
+      Delete: {
+        TableName: entity.table.tableName,
+        Key: entity.buildPrimaryKey(this.#config.key),
+      },
     }
   }
 }
