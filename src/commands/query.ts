@@ -21,8 +21,8 @@ export type QueryConfig<Schema extends ZodObject> = BaseConfig &
   EntityKeyInput<EntitySchema<Schema>> & {
     sortKeyCondition?: Condition
     filter?: Condition
-    select?: Select
     limit?: number
+    selectAttributes?: Select
     consistent?: boolean
     validationConcurrency?: number
     reverseIndexScan?: boolean
@@ -88,7 +88,7 @@ export class Query<Schema extends ZodObject>
       KeyConditionExpression: keyConditionExpression,
       FilterExpression: filterExpression,
       ...attributeExpressionMap.toDynamoAttributeExpression(),
-      Select: this.#config.select,
+      Select: this.#config.selectAttributes,
       Limit: this.#config.limit,
       ConsistentRead: this.#config.consistent ?? false,
       IndexName: indexName,

@@ -20,8 +20,8 @@ export type ScanConfig<Schema extends ZodObject> =
   | (BaseConfig & {
       indexName?: string
       filter?: Condition
-      select?: Select
       limit?: number
+      selectAttributes?: Select
       consistent?: boolean
       validationConcurrency?: number
       segment?: number
@@ -62,7 +62,7 @@ export class Scan<Schema extends ZodObject>
       TableName: entity.table.tableName,
       FilterExpression: filterExpression,
       ...attributeExpressionMap.toDynamoAttributeExpression(),
-      Select: this.#config?.select,
+      Select: this.#config?.selectAttributes,
       Limit: this.#config?.limit,
       ConsistentRead: this.#config?.consistent ?? false,
       IndexName: this.#config?.indexName,

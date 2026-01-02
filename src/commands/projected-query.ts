@@ -94,7 +94,7 @@ export class ProjectedQuery<Schema extends ZodObject, ProjectedSchema extends Zo
       FilterExpression: filterExpression,
       ProjectionExpression: projectionExpression,
       ...attributeExpressionMap.toDynamoAttributeExpression(),
-      Select: this.#config.select,
+      Select: this.#config.selectAttributes,
       Limit: this.#config.limit,
       ConsistentRead: this.#config.consistent ?? false,
       IndexName: 'index' in this.#config ? queryKeyName : undefined,

@@ -64,7 +64,7 @@ export class ProjectedScan<Schema extends ZodObject, ProjectedSchema extends Zod
       FilterExpression: filterExpression,
       ...attributeExpressionMap.toDynamoAttributeExpression(),
       ProjectionExpression: projectionExpression,
-      Select: this.#config.select,
+      Select: this.#config.selectAttributes,
       Limit: this.#config.limit,
       ConsistentRead: this.#config.consistent ?? false,
       IndexName: this.#config.indexName,
