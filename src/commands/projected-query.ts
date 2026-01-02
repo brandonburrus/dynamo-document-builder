@@ -8,6 +8,7 @@ import { PROJECTED_QUERY_VALIDATION_CONCURRENCY } from '@/internal-constants'
 import { parseCondition } from '@/conditions/condition-parser'
 import { parseProjection } from '@/projections/projection-parser'
 import type { BaseResult, BaseCommand, BasePaginatable } from '@/commands/base-command'
+import { DocumentBuilderError } from '@/errors'
 import {
   type NativeAttributeValue,
   QueryCommand,
@@ -49,8 +50,28 @@ export class ProjectedQuery<Schema extends ZodObject, ProjectedSchema extends Zo
   public buildCommandInput(entity: DynamoEntity<Schema>): QueryCommandInput {
     const attributeExpressionMap = new AttributeExpressionMap()
 
+    // Generate the PK or GSIPK key
+    const keyItem = entity.buildPrimaryOrIndexKey(this.#config)
+    let queryKeyName: string
+    if ('key' in this.#config) {
+      queryKeyName = entity.table.partitionKeyName
+    } else if ('index' in this.#config) {
+      const indexes = Object.keys(this.#config.index)
+      if (!indexes) {
+        throw new DocumentBuilderError('No index specified in query configuration.')
+      }
+      const indexName = Object.keys(this.#config.index)[0]!
+      queryKeyName = entity.table.globalSecondaryIndexKeyNames[indexName]!.partitionKey
+    } else {
+      throw new DocumentBuilderError("Either 'key' or 'index' must be specified for a query.")
+    }
+    const queryKeyValue: NativeAttributeValue = keyItem[queryKeyName!]
+
     const keyConditionExpression = parseCondition(
-      this.#config.keyCondition,
+      {
+        [queryKeyName!]: queryKeyValue,
+        ...this.#config.sortKeyCondition,
+      },
       attributeExpressionMap,
     ).conditionExpression
 
@@ -76,7 +97,7 @@ export class ProjectedQuery<Schema extends ZodObject, ProjectedSchema extends Zo
       Select: this.#config.select,
       Limit: this.#config.limit,
       ConsistentRead: this.#config.consistent ?? false,
-      IndexName: this.#config.queryIndexName,
+      IndexName: 'index' in this.#config ? queryKeyName : undefined,
       ScanIndexForward: !this.#config.reverseIndexScan,
       ExclusiveStartKey: this.#config.exclusiveStartKey as
         | Record<string, NativeAttributeValue>

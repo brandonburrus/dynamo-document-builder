@@ -21,7 +21,7 @@ export type DeleteConfig<Schema extends ZodObject> = BaseConfig & {
 }
 
 export type DeleteResult<Schema extends ZodObject> = BaseResult & {
-  deletedItem?: EntitySchema<Schema> | undefined
+  deletedItem?: Partial<EntitySchema<Schema>> | undefined
   itemCollectionMetrics?: ItemCollectionMetrics
 }
 
@@ -48,12 +48,14 @@ export class Delete<Schema extends ZodObject>
       requestTimeout: this.#config.timeoutMs,
     })
 
-    let deletedItem: EntitySchema<Schema> | undefined
+    let deletedItem: Partial<EntitySchema<Schema>> | undefined
     if (deleteResult.Attributes) {
       if (this.#config.skipValidation) {
-        deletedItem = deleteResult.Attributes as EntitySchema<Schema>
+        deletedItem = deleteResult.Attributes as Partial<EntitySchema<Schema>>
       } else {
-        deletedItem = await entity.schema.parseAsync(deleteResult.Attributes)
+        deletedItem = (await entity.schema
+          .partial()
+          .parseAsync(deleteResult.Attributes)) as Partial<EntitySchema<Schema>>
       }
     }
 

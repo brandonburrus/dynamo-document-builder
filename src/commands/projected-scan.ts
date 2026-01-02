@@ -67,7 +67,7 @@ export class ProjectedScan<Schema extends ZodObject, ProjectedSchema extends Zod
       Select: this.#config.select,
       Limit: this.#config.limit,
       ConsistentRead: this.#config.consistent ?? false,
-      IndexName: this.#config.scanIndexName,
+      IndexName: this.#config.indexName,
       Segment: this.#config.segment,
       TotalSegments: this.#config.totalSegments,
       ExclusiveStartKey: this.#config.exclusiveStartKey,

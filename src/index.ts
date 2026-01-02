@@ -1,5 +1,4 @@
 export * from './attributes'
-export * from './codec'
 export * from './commands'
 export * from './conditions'
 export * from './core'

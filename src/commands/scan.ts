@@ -16,18 +16,20 @@ import {
 import { parseCondition } from '@/conditions/condition-parser'
 import pMap from 'p-map'
 
-export type ScanConfig<Schema extends ZodObject> = BaseConfig & {
-  filter?: Condition
-  select?: Select
-  limit?: number
-  consistent?: boolean
-  validationConcurrency?: number
-  scanIndexName?: string
-  segment?: number
-  totalSegments?: number
-  exclusiveStartKey?: Partial<EntitySchema<Schema>>
-  pageSize?: number
-}
+export type ScanConfig<Schema extends ZodObject> =
+  | (BaseConfig & {
+      indexName?: string
+      filter?: Condition
+      select?: Select
+      limit?: number
+      consistent?: boolean
+      validationConcurrency?: number
+      segment?: number
+      totalSegments?: number
+      exclusiveStartKey?: Partial<EntitySchema<Schema>>
+      pageSize?: number
+    })
+  | undefined
 
 export type ScanResult<Schema extends ZodObject> = BaseResult & {
   items: EntitySchema<Schema>[]
@@ -39,9 +41,9 @@ export type ScanResult<Schema extends ZodObject> = BaseResult & {
 export class Scan<Schema extends ZodObject>
   implements BaseCommand<ScanResult<Schema>, Schema>, BasePaginatable<ScanResult<Schema>, Schema>
 {
-  #config: ScanConfig<Schema>
+  #config: ScanConfig<Schema> | undefined
 
-  constructor(config: ScanConfig<Schema>) {
+  constructor(config?: ScanConfig<Schema>) {
     this.#config = config
   }
 
@@ -49,7 +51,7 @@ export class Scan<Schema extends ZodObject>
     const attributeExpressionMap = new AttributeExpressionMap()
 
     let filterExpression: string | undefined
-    if (this.#config.filter) {
+    if (this.#config?.filter) {
       filterExpression = parseCondition(
         this.#config.filter,
         attributeExpressionMap,
@@ -60,14 +62,14 @@ export class Scan<Schema extends ZodObject>
       TableName: entity.table.tableName,
       FilterExpression: filterExpression,
       ...attributeExpressionMap.toDynamoAttributeExpression(),
-      Select: this.#config.select,
-      Limit: this.#config.limit,
-      ConsistentRead: this.#config.consistent ?? false,
-      IndexName: this.#config.scanIndexName,
-      Segment: this.#config.segment,
-      TotalSegments: this.#config.totalSegments,
-      ExclusiveStartKey: this.#config.exclusiveStartKey,
-      ReturnConsumedCapacity: this.#config.returnConsumedCapacity,
+      Select: this.#config?.select,
+      Limit: this.#config?.limit,
+      ConsistentRead: this.#config?.consistent ?? false,
+      IndexName: this.#config?.indexName,
+      Segment: this.#config?.segment,
+      TotalSegments: this.#config?.totalSegments,
+      ExclusiveStartKey: this.#config?.exclusiveStartKey,
+      ReturnConsumedCapacity: this.#config?.returnConsumedCapacity,
     } satisfies ScanCommandInput
   }
 
@@ -78,12 +80,12 @@ export class Scan<Schema extends ZodObject>
     if (!items) {
       return []
     }
-    if (this.#config.skipValidation) {
+    if (this.#config?.skipValidation) {
       return items as EntitySchema<Schema>[]
     }
     return pMap(items, item => entity.schema.parseAsync(item), {
-      concurrency: this.#config.validationConcurrency ?? SCAN_VALIDATION_CONCURRENCY,
-      signal: this.#config.abortController?.signal,
+      concurrency: this.#config?.validationConcurrency ?? SCAN_VALIDATION_CONCURRENCY,
+      signal: this.#config?.abortController?.signal,
     })
   }
 
@@ -104,8 +106,8 @@ export class Scan<Schema extends ZodObject>
   public async execute(entity: DynamoEntity<Schema>): Promise<ScanResult<Schema>> {
     const scan = new ScanCommand(this.buildCommandInput(entity))
     const scanResult = await entity.table.documentClient.send(scan, {
-      abortSignal: this.#config.abortController?.signal,
-      requestTimeout: this.#config.timeoutMs,
+      abortSignal: this.#config?.abortController?.signal,
+      requestTimeout: this.#config?.timeoutMs,
     })
     const items = await this.validateItems(entity, scanResult.Items)
     return this.buildResult(items, scanResult)
@@ -117,12 +119,12 @@ export class Scan<Schema extends ZodObject>
     const paginator = paginateScan(
       {
         client: entity.table.documentClient,
-        pageSize: this.#config.pageSize,
+        pageSize: this.#config?.pageSize,
       },
       this.buildCommandInput(entity),
       {
-        abortSignal: this.#config.abortController?.signal,
-        requestTimeout: this.#config.timeoutMs,
+        abortSignal: this.#config?.abortController?.signal,
+        requestTimeout: this.#config?.timeoutMs,
       },
     )
 

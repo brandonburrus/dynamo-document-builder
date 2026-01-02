@@ -33,18 +33,22 @@
     "prepare": "husky",
     "prepublishOnly": "npm run build && npm run lint && npm run test",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:coverage": "vitest run --coverage",
-    "test:watch": "vitest",
+    "test": "vitest run --config=tests/unit/vitest.config.ts",
+    "test:coverage": "vitest run --config=tests/unit/vitest.config.ts --coverage",
+    "test:watch": "vitest --config=tests/unit/vitest.config.ts",
+    "test:integration": "vitest run --config=tests/integration/vitest.config.ts",
+    "test:integration:coverage": "vitest run --config=tests/integration/vitest.config.ts --coverage",
+    "test:integration:watch": "vitest --config=tests/integration/vitest.config.ts",
+    "test:integration:ui": "vitest --ui --config=tests/integration/vitest.config.ts",
+    "test:integration:cdk": "cd tests/integration/cdk && cdk",
     "test:typecheck": "tsc --noEmit --project tests/tsconfig.json"
   },
   "lint-staged": {
     "*.ts": [
-      "biome check --write --staged",
-      "vitest"
+      "biome check --write --staged"
     ],
     "*.json": [
-      "biome check --write"
+      "biome check --write --staged"
     ]
   },
   "commitlint": {
@@ -62,18 +66,26 @@
     "@aws-sdk/lib-dynamodb": ">=3.800.0",
     "zod": ">=4.1.0"
   },
+  "dependencies": {
+    "p-map": "^5.3.0"
+  },
   "devDependencies": {
+    "@aws-sdk/client-sts": "^3.958.0",
     "@biomejs/biome": "^2.3.8",
     "@commitlint/cli": "^19.8.1",
     "@commitlint/config-conventional": "^19.8.1",
     "@types/node": "^22.15.24",
     "@vitest/coverage-v8": "^4.0.15",
+    "@vitest/ui": "^4.0.15",
+    "aws-cdk": "^2.1100.1",
+    "aws-cdk-lib": "^2.233.0",
     "aws-sdk-client-mock": "^4.1.0",
+    "constructs": "^10.4.4",
     "husky": "^9.1.7",
     "lint-staged": "^16.1.0",
-    "p-map": "^7.0.4",
+    "nanoid": "^5.1.6",
     "rimraf": "^6.0.1",
-    "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
     "typedoc": "^0.28.15",
     "typescript": "^5.8.3",
     "vitest": "^4.0.14"

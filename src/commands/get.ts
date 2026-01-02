@@ -3,12 +3,11 @@ import type { DynamoEntity } from '@/core/entity'
 import type { BaseConfig, BaseCommand, BaseResult } from '@/commands/base-command'
 import type { ZodObject } from 'zod/v4'
 import type { EntitySchema } from '@/core/core-types'
-import type { KeyInput } from '@/core/key'
 
-export type GetConfig<Schema extends ZodObject> = BaseConfig &
-  KeyInput<EntitySchema<Schema>> & {
-    consistent?: boolean
-  }
+export type GetConfig<Schema extends ZodObject> = BaseConfig & {
+  key: Partial<EntitySchema<Schema>>
+  consistent?: boolean
+}
 
 export type GetResult<Schema extends ZodObject> = BaseResult & {
   item: EntitySchema<Schema> | undefined
@@ -24,7 +23,7 @@ export class Get<Schema extends ZodObject> implements BaseCommand<GetResult<Sche
   public async execute(entity: DynamoEntity<Schema>): Promise<GetResult<Schema>> {
     const getItem = new GetCommand({
       TableName: entity.table.tableName,
-      Key: entity.buildPrimaryOrIndexKey(this.#config),
+      Key: entity.buildPrimaryKey(this.#config.key),
       ConsistentRead: this.#config.consistent ?? false,
       ReturnConsumedCapacity: this.#config.returnConsumedCapacity,
     })

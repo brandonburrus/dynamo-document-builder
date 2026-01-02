@@ -33,7 +33,11 @@ export type LocalSecondaryIndexKeyName = {
 export type NamedGlobalSecondaryIndexKeyNames = Record<IndexName, GlobalSecondaryIndexKeyName>
 export type NamedLocalSecondaryIndexKeyNames = Record<IndexName, LocalSecondaryIndexKeyName>
 
-// https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/Package/-aws-sdk-lib-dynamodb/TypeAlias/TransactWriteCommandInput/
+/**
+ * A modified version of TransactWriteItem that uses NativeAttributeValue for keys and items
+ * (dynamodb-lib doesnt export this type for some reason)
+ * https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/Package/-aws-sdk-lib-dynamodb/TypeAlias/TransactWriteCommandInput/
+ */
 export type TransactWriteOperation = Omit<
   TransactWriteItem,
   'ConditionCheck' | 'Put' | 'Delete' | 'Update'

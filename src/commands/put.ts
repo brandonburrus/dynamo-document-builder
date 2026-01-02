@@ -21,7 +21,7 @@ export type PutConfig<Schema extends ZodObject> = BaseConfig & {
 }
 
 export type PutResult<Schema extends ZodObject> = BaseResult & {
-  returnItem: EntitySchema<Schema> | undefined
+  returnItem: Partial<EntitySchema<Schema>> | undefined
   itemCollectionMetrics?: ItemCollectionMetrics
 }
 
@@ -59,9 +59,11 @@ export class Put<Schema extends ZodObject>
       requestTimeout: this.#config.timeoutMs,
     })
     if (putResult.Attributes) {
-      const returnItem: EntitySchema<Schema> = this.#config.skipValidation
-        ? (putResult.Attributes as EntitySchema<Schema>)
-        : await entity.schema.parseAsync(putResult.Attributes)
+      const returnItem = (
+        this.#config.skipValidation
+          ? putResult.Attributes
+          : await entity.schema.partial().parseAsync(putResult.Attributes)
+      ) as Partial<EntitySchema<Schema>>
 
       return {
         returnItem,

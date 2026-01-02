@@ -1,8 +1,9 @@
 import type { Condition } from '@/conditions/condition-types'
-import type { DynamoEntity } from '@/core/entity'
+import type { DynamoEntity, EntityKeyInput } from '@/core/entity'
 import type { EntitySchema } from '@/core/core-types'
 import type { Select } from '@aws-sdk/client-dynamodb'
 import type { ZodObject } from 'zod/v4'
+import type { BaseConfig, BaseCommand, BasePaginatable, BaseResult } from '@/commands/base-command'
 import { AttributeExpressionMap } from '@/attributes/attribute-map'
 import { QUERY_VALIDATION_CONCURRENCY } from '@/internal-constants'
 import {
@@ -13,21 +14,21 @@ import {
   type QueryCommandOutput,
 } from '@aws-sdk/lib-dynamodb'
 import { parseCondition } from '@/conditions'
-import type { BaseConfig, BaseCommand, BasePaginatable, BaseResult } from '@/commands/base-command'
+import { DocumentBuilderError } from '@/errors'
 import pMap from 'p-map'
 
-export type QueryConfig<Schema extends ZodObject> = BaseConfig & {
-  keyCondition: Condition
-  filter?: Condition
-  select?: Select
-  limit?: number
-  consistent?: boolean
-  validationConcurrency?: number
-  queryIndexName?: string
-  reverseIndexScan?: boolean
-  exclusiveStartKey?: Partial<EntitySchema<Schema>>
-  pageSize?: number
-}
+export type QueryConfig<Schema extends ZodObject> = BaseConfig &
+  EntityKeyInput<EntitySchema<Schema>> & {
+    sortKeyCondition?: Condition
+    filter?: Condition
+    select?: Select
+    limit?: number
+    consistent?: boolean
+    validationConcurrency?: number
+    reverseIndexScan?: boolean
+    exclusiveStartKey?: Partial<EntitySchema<Schema>>
+    pageSize?: number
+  }
 
 export type QueryResult<Schema extends ZodObject> = BaseResult & {
   items: EntitySchema<Schema>[]
@@ -48,8 +49,29 @@ export class Query<Schema extends ZodObject>
   public buildCommandInput(entity: DynamoEntity<Schema>): QueryCommandInput {
     const attributeExpressionMap = new AttributeExpressionMap()
 
+    // Generate the PK or GSIPK key
+    const keyItem = entity.buildPrimaryOrIndexKey(this.#config)
+    let queryKeyName: string
+    let indexName: string | undefined
+    if ('key' in this.#config) {
+      queryKeyName = entity.table.partitionKeyName
+    } else if ('index' in this.#config) {
+      const indexes = Object.keys(this.#config.index)
+      if (!indexes) {
+        throw new DocumentBuilderError('No index specified in query configuration.')
+      }
+      indexName = Object.keys(this.#config.index)[0]!
+      queryKeyName = entity.table.globalSecondaryIndexKeyNames[indexName]!.partitionKey
+    } else {
+      throw new DocumentBuilderError("Either 'key' or 'index' must be specified for a query.")
+    }
+    const queryKeyValue: NativeAttributeValue = keyItem[queryKeyName!]
+
     const keyConditionExpression = parseCondition(
-      this.#config.keyCondition,
+      {
+        [queryKeyName!]: queryKeyValue,
+        ...(this.#config.sortKeyCondition ?? {}),
+      },
       attributeExpressionMap,
     ).conditionExpression
 
@@ -69,7 +91,7 @@ export class Query<Schema extends ZodObject>
       Select: this.#config.select,
       Limit: this.#config.limit,
       ConsistentRead: this.#config.consistent ?? false,
-      IndexName: this.#config.queryIndexName,
+      IndexName: indexName,
       ScanIndexForward: !this.#config.reverseIndexScan,
       ExclusiveStartKey: this.#config.exclusiveStartKey,
       ReturnConsumedCapacity: this.#config.returnConsumedCapacity,

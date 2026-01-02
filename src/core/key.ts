@@ -23,13 +23,3 @@ export type DynamoKey = Record<string, DynamoKeyableValue>
 export function key(...parts: DynamoKeyableValue[]): string {
   return parts.join('#')
 }
-
-export type KeyInput<Item> =
-  | {
-      key: Partial<Item>
-    }
-  | {
-      index: {
-        [index: IndexName]: Partial<Item>
-      }
-    }

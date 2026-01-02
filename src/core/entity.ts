@@ -5,11 +5,10 @@ import type {
   DynamoKey,
   GlobalSecondaryIndexKeyBuilders,
   LocalSecondaryIndexKeyBuilders,
-  KeyInput,
 } from '@/core/key'
 import type { DynamoTable } from '@/core/table'
 import type { ZodObject } from 'zod/v4'
-import type { EntitySchema } from '@/core/core-types'
+import type { EntitySchema, IndexName } from '@/core/core-types'
 import { DocumentBuilderError } from '@/errors'
 
 export type DynamoEntityConfig<Schema extends ZodObject> = {
@@ -20,6 +19,16 @@ export type DynamoEntityConfig<Schema extends ZodObject> = {
   globalSecondaryIndexes?: GlobalSecondaryIndexKeyBuilders<EntitySchema<Schema>>
   localSecondaryIndexes?: LocalSecondaryIndexKeyBuilders<EntitySchema<Schema>>
 }
+
+export type EntityKeyInput<Item> =
+  | {
+      key: Partial<Item>
+    }
+  | {
+      index: {
+        [index: IndexName]: Partial<Item>
+      }
+    }
 
 export class DynamoEntity<Schema extends ZodObject> {
   #table: DynamoTable
@@ -48,6 +57,16 @@ export class DynamoEntity<Schema extends ZodObject> {
 
   public get schema(): Schema {
     return this.#schema
+  }
+
+  public get secondaryIndexKeyBuilders(): {
+    gsi: GlobalSecondaryIndexKeyBuilders<EntitySchema<Schema>>
+    lsi: LocalSecondaryIndexKeyBuilders<EntitySchema<Schema>>
+  } {
+    return {
+      gsi: this.#gsi,
+      lsi: this.#lsi,
+    }
   }
 
   public buildPartitionKey(item: Partial<EntitySchema<Schema>>): DynamoKeyableValue | undefined {
@@ -115,13 +134,15 @@ export class DynamoEntity<Schema extends ZodObject> {
     } satisfies DynamoKey
   }
 
-  public buildPrimaryOrIndexKey(keyInput: KeyInput<EntitySchema<Schema>>): DynamoKey {
+  public buildPrimaryOrIndexKey(keyInput: EntityKeyInput<EntitySchema<Schema>>): DynamoKey {
     if ('key' in keyInput) {
       return this.buildPrimaryKey(keyInput.key)
     }
     const indexInput = Object.keys(keyInput.index)
     if (indexInput.length === 0) {
       throw new DocumentBuilderError('Index name is required to build index key')
+    } else if (indexInput.length > 1) {
+      throw new DocumentBuilderError('Only one index can be specified to build index key')
     }
     const indexName = indexInput[0]!
     if (this.#gsi[indexName]) {

@@ -17,7 +17,7 @@ export type ConditionalDeleteConfig<Schema extends ZodObject> = DeleteConfig<Sch
 }
 
 export type ConditionalDeleteResult<Schema extends ZodObject> = BaseResult & {
-  oldItem?: EntitySchema<Schema> | undefined
+  deletedItem?: Partial<EntitySchema<Schema>> | undefined
   itemCollectionMetrics?: ItemCollectionMetrics
 }
 
@@ -49,20 +49,19 @@ export class ConditionalDelete<Schema extends ZodObject>
       requestTimeout: this.#config.timeoutMs,
     })
 
+    let deletedItem: Partial<EntitySchema<Schema>> | undefined
     if (deleteResult.Attributes) {
-      const oldItem = this.#config.skipValidation
-        ? (deleteResult.Attributes as EntitySchema<Schema>)
-        : await entity.schema.parseAsync(deleteResult.Attributes)
-      return {
-        oldItem,
-        responseMetadata: deleteResult.$metadata,
-        consumedCapacity: deleteResult.ConsumedCapacity,
-        itemCollectionMetrics: deleteResult.ItemCollectionMetrics,
+      if (this.#config.skipValidation) {
+        deletedItem = deleteResult.Attributes as Partial<EntitySchema<Schema>>
+      } else {
+        deletedItem = (await entity.schema
+          .partial()
+          .parseAsync(deleteResult.Attributes)) as Partial<EntitySchema<Schema>>
       }
     }
 
     return {
-      oldItem: undefined,
+      deletedItem,
       responseMetadata: deleteResult.$metadata,
       consumedCapacity: deleteResult.ConsumedCapacity,
       itemCollectionMetrics: deleteResult.ItemCollectionMetrics,

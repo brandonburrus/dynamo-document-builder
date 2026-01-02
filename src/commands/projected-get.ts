@@ -35,16 +35,16 @@ export class ProjectedGet<Schema extends ZodObject, ProjectionSchema extends Zod
       this.#config.projection,
     )
 
-    const getCmd = new GetCommand({
+    const getItem = new GetCommand({
       TableName: entity.table.tableName,
-      Key: entity.buildPrimaryOrIndexKey(this.#config),
+      Key: entity.buildPrimaryKey(this.#config.key),
       ProjectionExpression: projectionExpression,
       ExpressionAttributeNames: attributeExpressionMap.toDynamoAttributeNames(),
       ConsistentRead: this.#config.consistent ?? false,
       ReturnConsumedCapacity: this.#config.returnConsumedCapacity,
     })
 
-    const getResult = await entity.table.documentClient.send(getCmd, {
+    const getResult = await entity.table.documentClient.send(getItem, {
       abortSignal: this.#config.abortController?.signal,
       requestTimeout: this.#config.timeoutMs,
     })

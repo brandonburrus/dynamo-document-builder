@@ -24,7 +24,7 @@ export type UpdateConfig<Schema extends ZodObject> = BaseConfig & {
 }
 
 export type UpdateResult<Schema extends ZodObject> = BaseResult & {
-  updatedItem?: EntitySchema<Schema> | undefined
+  updatedItem?: Partial<EntitySchema<Schema>> | undefined
   itemCollectionMetrics?: ItemCollectionMetrics
 }
 
@@ -55,12 +55,14 @@ export class Update<Schema extends ZodObject>
       requestTimeout: this.#config.timeoutMs,
     })
 
-    let updatedItem: EntitySchema<Schema> | undefined
+    let updatedItem: Partial<EntitySchema<Schema>> | undefined
     if (updateResult.Attributes) {
       if (this.#config.skipValidation) {
-        updatedItem = updateResult.Attributes as EntitySchema<Schema>
+        updatedItem = updateResult.Attributes as Partial<EntitySchema<Schema>>
       } else {
-        updatedItem = await entity.schema.parseAsync(updateResult.Attributes)
+        updatedItem = (await entity.schema
+          .partial()
+          .parseAsync(updateResult.Attributes)) as Partial<EntitySchema<Schema>>
       }
     }
 
