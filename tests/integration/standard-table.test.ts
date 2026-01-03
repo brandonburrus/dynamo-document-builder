@@ -395,7 +395,7 @@ describe('standard table', () => {
 
       const batchWriteResult = await standardEntity.send(
         new BatchWrite({
-          puts: items,
+          items,
         }),
       )
 

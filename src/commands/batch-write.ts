@@ -8,7 +8,7 @@ import { BatchWriteCommand } from '@aws-sdk/lib-dynamodb'
 import pMap from 'p-map'
 
 export type BatchWriteConfig<Schema extends ZodObject> = BaseConfig & {
-  puts?: Array<EntitySchema<Schema>>
+  items?: Array<EntitySchema<Schema>>
   deletes?: Array<Partial<EntitySchema<Schema>>>
   returnItemCollectionMetrics?: ReturnItemCollectionMetrics
 }
@@ -29,11 +29,11 @@ export class BatchWrite<Schema extends ZodObject>
   }
 
   public async buildPutRequests(entity: DynamoEntity<Schema>) {
-    if (!this.#config.puts || this.#config.puts.length === 0) {
+    if (!this.#config.items || this.#config.items.length === 0) {
       return []
     }
     if (this.#config.skipValidation) {
-      return this.#config.puts.map(item => ({
+      return this.#config.items.map(item => ({
         PutRequest: {
           Item: {
             ...item,
@@ -43,7 +43,7 @@ export class BatchWrite<Schema extends ZodObject>
       }))
     }
     return pMap(
-      this.#config.puts,
+      this.#config.items,
       async item => {
         const encodedData = await entity.schema.encodeAsync(item)
         return {
