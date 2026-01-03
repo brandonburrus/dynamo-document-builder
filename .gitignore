@@ -136,3 +136,6 @@ dist
 .pnp.*
 
 cdk.out
+
+# Local Netlify folder
+.netlify

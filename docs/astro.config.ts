@@ -4,6 +4,8 @@ import starlightTheme from 'starlight-theme-rapide'
 import starlightTypeDoc, { typeDocSidebarGroup } from 'starlight-typedoc'
 import mermaid from 'astro-mermaid'
 
+import netlify from '@astrojs/netlify'
+
 export default defineConfig({
   integrations: [
     starlight({
@@ -144,7 +146,10 @@ export default defineConfig({
       autoTheme: true,
     }),
   ],
+
   server: {
     port: 3000,
   },
+
+  adapter: netlify(),
 })
