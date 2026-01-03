@@ -1,0 +1,188 @@
+---
+title: Batching
+description: A guide on batch operations using Dynamo Documnt Builder.
+---
+
+import ConfigTable from '../../../../components/ConfigTable.astro';
+import ResultTable from '../../../../components/ResultTable.astro';
+import PropTableEntry from '../../../../components/PropTableEntry.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+Use the `BatchGet` and `BatchWrite` commands to perform read and write batch operations in DynamoDB. These are the Document Builder commands for [`BatchGetItem`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html) and [`BatchWriteItem`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html) operations.
+
+## Batch Reads
+
+The `BatchGet` command enables you to retrieve multiple items by primary key in a single operation:
+
+```ts
+const batchGet = new BatchGet({
+  keys: [
+    { userId: '123', todoId: '456' },
+    { userId: '789', todoId: '101' },
+  ],
+});
+
+const { items } = await todoEntity.send(batchGet);
+console.log(items);
+```
+
+### Consistent Reads
+
+If you need the read to be strongly consistent for all items, you can set the `consistent` parameter to `true`:
+
+```ts
+const batchGet = new BatchGet({
+  keys: [
+    { userId: '123', todoId: '456' },
+    { userId: '789', todoId: '101' },
+  ],
+  consistent: true,
+});
+
+const { items } = await todoEntity.send(batchGet);
+```
+
+## Batch Writes
+
+The `BatchWrite` command enables you to put (create or replace) and/or delete multiple items in a single operation:
+
+```ts
+const batchWrite = new BatchWrite({
+  items: [
+    { userId: '123', todoId: '456', title: 'Take out the trash', completed: false },
+    { userId: '789', todoId: '101', title: 'Buy groceries', completed: true },
+  ],
+  deletes: [
+    { userId: '111', todoId: '222' },
+  ],
+});
+```
+
+## Unprocessed Items
+
+Both `BatchGet` and `BatchWrite` commands may return unprocessed keys or items if the operation exceeds provisioned throughput limits. You can retry these unprocessed items in subsequent batch operations.
+
+`BatchGet` will return `unprocessedKeys`, while `BatchWrite` will return `unprocessedPuts` and `unprocessedDeletes`.
+
+<Aside type='note' title='Exponential Backoff'>
+When retrying unprocessed items, DynamoDB strongly recommends using exponential backoff with jitter to avoid overwhelming the service.
+</Aside>
+
+## Batch Get Command Config
+
+The `BatchGet` command expects the following input config:
+```ts
+{
+  keys: Array<Partial<Schema>>;
+  consistent?: boolean;
+  skipValidation?: boolean;
+  timeoutMs?: number;
+  abortController?: AbortController;
+  returnConsumedCapacity?: ReturnConsumedCapacity;
+}
+```
+
+<ConfigTable>
+  <PropTableEntry name='keys' type='Array&lt;Partial&lt;Schema&gt;&gt;' required>
+    An array of primary keys for the items to retrieve. Each key should contain the attributes that make up the primary key. If using [computed primary keys](/guides/entities/#computed-primary-keys), only include the attributes used by your key builder functions.
+  </PropTableEntry>
+  <PropTableEntry name='consistent?' type='boolean' defaultValue='false'>
+    If set to true, DynamoDB will ensure a strongly consistent read for all items.
+  </PropTableEntry>
+</ConfigTable>
+
+## Batch Get Command Result
+
+The `BatchGet` command returns the following result:
+```ts
+{
+  items: Schema[];
+  unprocessedKeys?: Array<Partial<Schema>>;
+  responseMetadata?: ResponseMetadata;
+  consumedCapacity?: ConsumedCapacity;
+}
+```
+
+<ResultTable>
+  <PropTableEntry name='items' type='Schema[]'>
+    An array of retrieved items.
+    Will be an empty array if no items were found.
+  </PropTableEntry>
+  <PropTableEntry name='unprocessedKeys?' type='Array&lt;Partial&lt;Schema&gt;&gt;'>
+    If present, contains the keys that were not processed due to provisioned throughput limits.
+    These keys can be used in a subsequent batch get request to retry retrieval.
+  </PropTableEntry>
+</ResultTable>
+
+## Batch Write Command Config
+
+The `BatchWrite` command expects the following input config:
+```ts
+{
+  items?: Array<Schema>;
+  deletes?: Array<Partial<Schema>>;
+  returnItemCollectionMetrics?: ReturnItemCollectionMetrics;
+  skipValidation?: boolean;
+  timeoutMs?: number;
+  abortController?: AbortController;
+  returnConsumedCapacity?: ReturnConsumedCapacity;
+}
+```
+
+At least one of `items` or `deletes` must be provided.
+
+<ConfigTable>
+  <PropTableEntry name='items' type='Array&lt;Schema&gt;'>
+    An array of items to put (create or replace) in the table.
+  </PropTableEntry>
+  <PropTableEntry name='deletes' type='Array&lt;Partial&lt;Schema&gt;&gt;'>
+    An array of primary keys for items to delete from the table. Each key should contain the attributes that make up the primary key. If using [computed primary keys](/guides/entities/#computed-primary-keys), only include the attributes used by your key builder functions.
+  </PropTableEntry>
+  <PropTableEntry name='returnItemCollectionMetrics' type='ReturnItemCollectionMetrics'>
+    Determines whether item collection metrics are returned.
+    Valid values are `SIZE` and `NONE`.
+  </PropTableEntry>
+</ConfigTable>
+
+## Batch Write Command Result
+
+The `BatchWrite` command returns the following result:
+```ts
+{
+  unprocessedPuts?: Array<Schema>;
+  unprocessedDeletes?: Array<Partial<Schema>>;
+  itemColectionMetrics?: ItemCollectionMetrics;
+  responseMetadata?: ResponseMetadata;
+  consumedCapacity?: ConsumedCapacity;
+}
+```
+
+<ResultTable>
+  <PropTableEntry name='unprocessedPuts?' type='Array&lt;Schema&gt;'>
+    If present, contains the put items that were not processed due to provisioned throughput limits.
+    These items can be used in a subsequent batch write request to retry the put operations.
+  </PropTableEntry>
+  <PropTableEntry name='unprocessedDeletes?' type='Array&lt;Partial&lt;Schema&gt;&gt;'>
+    If present, contains the delete keys that were not processed due to provisioned throughput limits.
+    These keys can be used in a subsequent batch write request to retry the delete operations.
+  </PropTableEntry>
+  <PropTableEntry name='itemColectionMetrics?' type='ItemCollectionMetrics'>
+    Information about item collection metrics, if requested via `returnItemCollectionMetrics`.
+  </PropTableEntry>
+</ResultTable>
+
+## Tree-shakable Imports
+
+```ts
+import { BatchGet } from 'dynamo-document-builder/commands/batch-get';
+import { BatchWrite } from 'dynamo-document-builder/commands/batch-write';
+```
+
+## API Reference
+
+- [`BatchGet`](/api-reference/classes/batchget)
+- [`BatchGetConfig`](/api-reference/type-aliases/batchgetconfig)
+- [`BatchGetResult`](/api-reference/type-aliases/batchgetresult)
+- [`BatchWrite`](/api-reference/classes/batchwrite)
+- [`BatchWriteConfig`](/api-reference/type-aliases/batchwriteconfig)
+- [`BatchWriteResult`](/api-reference/type-aliases/batchwriteresult)

@@ -1,0 +1,207 @@
+---
+title: Delete
+description: A guide on Delete operations using Dynamo Document Builder.
+---
+
+import ConfigTable from '../../../../components/ConfigTable.astro';
+import ResultTable from '../../../../components/ResultTable.astro';
+import PropTableEntry from '../../../../components/PropTableEntry.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+Use the `Delete` command to remove a single item from DynamoDB. This is the Document Builder command for a [`DeleteItem`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_DeleteItem.html) operation.
+
+## Basic Usage
+
+Delete an item by primary key.
+
+```ts
+const todoEntity = new DynamoEntity({
+  table: parentTable,
+  schema: z.object({
+    todoId: z.string(),
+    userId: z.string(),
+    title: z.string(),
+    completed: z.boolean(),
+  }),
+  partitionKey: todo => key('USER', todo.userId),
+  sortKey: todo => key('TODO', todo.todoId),
+});
+
+const deleteCommand = new Delete({
+  key: {
+    userId: '123',
+    todoId: '456',
+  },
+});
+
+await todoEntity.send(deleteCommand);
+```
+
+<Aside type='note'>
+Currently, items in DynamoDB can only be deleted by primary key *only*, not by secondary indexes. If you need to delete an item using a secondary index, you must first perform a `Get` or `Query` operation to retrieve the primary key of the item, and then use that primary key to perform the `Delete` operation.
+</Aside>
+
+## Returning the Deleted Item
+
+You can request that the delete operation return the item's attributes as they appeared before the delete operation. To do this, set the `returnValues` parameter in the command config.
+
+```ts
+const deleteCommand = new Delete({
+  key: {
+    userId: '123',
+    todoId: '456',
+  },
+  returnValues: 'ALL_OLD',
+});
+
+const deleteResult = await todoEntity.send(deleteCommand);
+console.log(deleteResult.deletedItem);
+```
+
+<Aside type='note' title='Deleted Item Type'>
+The `deletedItem` type is always a `Partial<T>` of your schema type, since the deleted item may not exist or might only contain a subset of attributes.
+</Aside>
+
+## Conditional Deletes
+
+You can perform a delete that only succeeds if certain conditions are met. To do this, use the `ConditionalDelete` command and provide a `condition` in the command config.
+
+```ts
+const conditionalDelete = new ConditionalDelete({
+  key: {
+    userId: '123',
+    todoId: '456',
+  },
+  condition: {
+    completed: true,
+  },
+});
+
+await todoEntity.send(conditionalDelete);
+```
+
+In the above example, the delete will only succeed if the `completed` attribute is `true`.
+
+<Aside type='tip' title='Defining Conditions'>
+Document Builder provides a expressive API for defining conditions over DynamoDB's base `ConditionExpression`, see [Conditions](/guides/advanced/conditions) for more details.
+</Aside>
+
+## Delete Command Config
+
+The `Delete` command accepts the following input config:
+```ts
+{
+  key: Partial<Schema>;
+  returnValues?: ReturnValue;
+  returnItemCollectionMetrics?: ReturnItemCollectionMetrics;
+  skipValidation?: boolean;
+  timeoutMs?: number;
+  abortController?: AbortController;
+  returnConsumedCapacity?: ReturnConsumedCapacity;
+}
+```
+
+<ConfigTable>
+  <PropTableEntry name='key' type='Partial<Schema>' required>
+    The primary key of the item to delete. If using [computed primary keys](/guides/entities/#computed-primary-keys), only include the attributes used by your key builder functions. Otherwise this should be the attributes that make up the full primary key (partition key and sort key, if applicable).
+  </PropTableEntry>
+  <PropTableEntry name='returnValues?' type='ReturnValue'>
+    Use this to request that the put operation return the item's attributes as they appeared before the put operation, in case you are overwriting an existing item. Valid values are `ALL_OLD`, `ALL_NEW`, `UPDATED_OLD`, `UPDATED_NEW`, and `NONE`.
+  </PropTableEntry>
+  <PropTableEntry name='returnItemCollectionMetrics?' type='ReturnItemCollectionMetrics'>
+    Use this to request that the put operation return information about item collections, if any, that were affected by the operation. Valid values are `SIZE` and `NONE`.
+  </PropTableEntry>
+</ConfigTable>
+
+## Delete Command Result
+
+The `Delete` command returns the following result:
+```ts
+{
+  deletedItem?: Partial<Schema>;
+  itemCollectionMetrics?: ItemCollectionMetrics;
+  responseMetadata?: ResponseMetadata;
+  consumedCapacity?: ConsumedCapacity;
+}
+```
+
+<ResultTable>
+  <PropTableEntry name='deletedItem?' type='Partial&lt;Schema&gt;'>
+    The returned item as they appeared before the put operation, if requested via `returnValues` in the config.
+  </PropTableEntry>
+  <PropTableEntry name='itemCollectionMetrics?' type='ItemCollectionMetrics'>
+    Information about item collections, if any, that were affected by the operation.
+  </PropTableEntry>
+</ResultTable>
+
+## Conditional Delete Command Config
+
+The `ConditionalDelete` command accepts the following input config:
+```ts
+{
+  key: Partial<Schema>;
+  returnValues?: ReturnValue;
+  returnValuesOnConditionCheckFailure?: ReturnValuesOnConditionCheckFailure;
+  returnItemCollectionMetrics?: ReturnItemCollectionMetrics;
+  skipValidation?: boolean;
+  timeoutMs?: number;
+  abortController?: AbortController;
+  returnConsumedCapacity?: ReturnConsumedCapacity;
+}
+```
+
+<ConfigTable>
+  <PropTableEntry name='key' type='Partial<Schema>' required>
+    The primary key of the item to delete. If using [computed primary keys](/guides/entities/#computed-primary-keys), only include the attributes used by your key builder functions. Otherwise this should be the attributes that make up the full primary key (partition key and sort key, if applicable).
+  </PropTableEntry>
+  <PropTableEntry name='condition' type='Condition' required>
+    A condition that must be satisfied in order for the delete operation to succeed.
+    See [Conditions](/guides/advanced/conditions) for more details.
+  </PropTableEntry>
+  <PropTableEntry name='returnValues?' type='ReturnValue'>
+    Use this to request that the put operation return the item's attributes as they appeared before the put operation, in case you are overwriting an existing item. Valid values are `ALL_OLD`, `ALL_NEW`, `UPDATED_OLD`, `UPDATED_NEW`, and `NONE`.
+  </PropTableEntry>
+  <PropTableEntry name='returnValuesOnConditionCheckFailure?' type='ReturnValuesOnConditionCheckFailure'>
+    Use this to request that the put operation return the item's attributes as they appeared before the failed condition check. Valid values are `ALL_OLD` and `NONE`.
+  </PropTableEntry>
+  <PropTableEntry name='returnItemCollectionMetrics?' type='ReturnItemCollectionMetrics'>
+    Use this to request that the put operation return information about item collections, if any, that were affected by the operation. Valid values are `SIZE` and `NONE`.
+  </PropTableEntry>
+</ConfigTable>
+
+## Conditional Delete Command Result
+
+The `ConditionalDelete` command returns the following result:
+```ts
+{
+  deletedItem?: Partial<Schema>;
+  itemCollectionMetrics?: ItemCollectionMetrics;
+  responseMetadata?: ResponseMetadata;
+  consumedCapacity?: ConsumedCapacity;
+}
+```
+
+<ResultTable>
+  <PropTableEntry name='deletedItem?' type='Partial&lt;Schema&gt;'>
+    The returned item as they appeared before the put operation, if requested via `returnValues` in the config.
+  </PropTableEntry>
+  <PropTableEntry name='itemCollectionMetrics?' type='ItemCollectionMetrics'>
+    Information about item collections, if any, that were affected by the operation.
+  </PropTableEntry>
+</ResultTable>
+
+## Tree-shakable Imports
+
+```ts
+import { Delete } from 'dynamo-document-builder/commands/delete';
+import { ConditionalDelete } from 'dynamo-document-builder/commands/conditional-delete';
+```
+
+## API Reference
+
+- [`Delete`](/api-reference/classes/delete)
+- [`DeleteConfig`](/api-reference/type-aliases/deleteconfig)
+- [`DeleteResult`](/api-reference/type-aliases/deleteresult)
+- [`ConditionalDelete`](/api-reference/classes/conditional-delete)
+- [`ConditionalDeleteConfig`](/api-reference/type-aliases/conditionaldeleteconfig)
+- [`ConditionalDeleteResult`](/api-reference/type-aliases/conditionaldeleteresult)

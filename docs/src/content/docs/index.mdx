@@ -1,0 +1,126 @@
+---
+title: Dynamo&nbsp;Document&nbsp;Builder
+description: Single table design and data validation made easy using TypeScript and Zod ⚡️
+template: splash
+hero:
+  tagline: DynamoDB single table design and data validation made easy using TypeScript and Zod ⚡️
+  image:
+    file: ../../assets/ddb-logo.webp
+  actions:
+    - text: Get Started
+      link: /quick-start/getting-started
+    #   icon: right-arrow
+    # - text: See Example Code
+    #   link: /examples/basic-crud-operations
+    #   icon: right-arrow
+    #   variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Why use this?
+
+<CardGrid>
+  <Card title="Schema Validation" icon="seti:json">
+    Define schemas for your data model using [Zod](https://zod.dev) to enforce powerful, type-safe validation.
+  </Card>
+  <Card title="Single Table Design" icon="list-format">
+    Designed from the ground up to follow the [Single Table](https://www.alexdebrie.com/posts/dynamodb-single-table) design pattern.
+  </Card>
+  <Card title="Ergonomic API" icon="seti:html">
+    All Document Builder APIs are designed to be functional and easy to use, making working with DynamoDB that much easier.
+  </Card>
+  <Card title="Type-safe" icon="seti:typescript">
+    Built from the ground up to be not only type-safe, but to be able to infer your data model TypeScript types based on your Zod schemas.
+  </Card>
+  <Card title="Tree-shakeable" icon="puzzle">
+    When bundle size matters, Document Builder is completely tree-shakeable to remove the parts you aren't using.
+  </Card>
+  <Card title="Extensively Documented" icon="open-book">
+    The documentation you're reading right now has complete guides, example code, and a detailed API reference.
+  </Card>
+</CardGrid>
+
+## Show me some code!
+
+```ts {"Define your DynamoDB clients": 6} {"Define your table": 10} {"Define an entity that belongs to that table": 20} {"Infer the TypeScript type from the entity from the schema": 32} {"Create a new item": 35} {"Put the item to DynamoDB": 42} {"Get the item back from DynamoDB": 47}
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
+import { DynamoTable, DynamoEntity, type Entity, Put, Get } from 'dynamo-document-builder';
+import { z } from 'zod';
+
+
+const dynamoDbClient = new DynamoDBClient();
+const docClient = DynamoDBDocumentClient.from(dynamoDbClient);
+
+
+const myTable = new DynamoTable({
+  tableName: 'MyDynamoTable',
+  documentClient: docClient,
+  keyNames: {
+    partitionKey: 'PK',
+    sortKey: 'SK',
+  },
+});
+
+
+const userEntity = new DynamoEntity({
+  table: myTable,
+  schema: z.object({
+    id: z.string(),
+    name: z.string(),
+    email: z.string().email(),
+  }),
+  partitionKey: user => `USER#${user.id}`,
+  sortKey: user => `EMAIL#${user.email}`,
+});
+
+
+type User = Entity<typeof userEntity>;
+
+
+const newUser: User = {
+  id: '123',
+  name: 'John Doe',
+  email: 'johndoe@example.com',
+};
+
+
+await userEntity.send(new Put({
+  item: newUser, // Validated against the Zod schema
+}))
+
+
+const retrievedUser = await userEntity.send(new Get({
+  // PK and SK auto-built from the key functions in the Entity
+  key: {
+    id: '123',
+    email: 'johndoe@example.com',
+  },
+}));
+```
+
+# Features
+<CardGrid>
+  <Card title="Implemented">
+    <ul>
+      <li>Zod schema validation</li>
+      <li>Typescript entity type inference</li>
+      <li>Automatic primary key generation</li>
+      <li>CRUD operations (Put, Get, Update, Delete)</li>
+      <li>Enhanced update operation API</li>
+      <li>Queries</li>
+      <li>Conditions</li>
+    </ul>
+  </Card>
+  <Card title="Work in Progress">
+    <ul>
+      <li>Scans</li>
+      <li>Pagination</li>
+      <li>Projections</li>
+      <li>Secondary indicies</li>
+      <li>Transactions</li>
+      <li>Batch operations (Get, Put, Delete)</li>
+    </ul>
+  </Card>
+</CardGrid>

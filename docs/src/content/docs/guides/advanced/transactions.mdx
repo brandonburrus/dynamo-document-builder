@@ -1,0 +1,212 @@
+---
+title: Transactions
+description: A guide on building transactions using Dynamo Documnt Builder.
+---
+
+import ConfigTable from '../../../../components/ConfigTable.astro';
+import PropTable from '../../../../components/PropTable.astro';
+import ResultTable from '../../../../components/ResultTable.astro';
+import PropTableEntry from '../../../../components/PropTableEntry.astro';
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+
+Use the `TransactGet` and `TransactWrite` commands to perform transactional read and write operations in DynamoDB. These are the Document Builder commands for [`TransactGetItems`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_TransactGetItems.html) and [`TransactWriteItems`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_TransactWriteItems.html) operations.
+
+## Transactional Reads
+
+The `TransactGet` command enables you to retrieve multiple items by primary key in a single operation:
+
+```ts
+const transactGet = new TransactGet({
+  keys: [
+    { userId: '123', todoId: '456' },
+    { userId: '789', todoId: '101' },
+  ],
+});
+
+const { items } = await todoEntity.send(transactGet);
+console.log(items);
+```
+
+<Aside type='note' title='Batch Get vs Transact Get'>
+While both `BatchGet` and `TransactGet` allow you to retrieve multiple items, `TransactGet` is an **all or nothing** operation with strongly consistent serializable isolation by default. This means that either all requested items are retrieved successfully, or none are, ensuring data integrity in scenarios where multiple related items must be read together. `BatchGet` is a more simple (eventually consistent by default) **bulk read** operation which can return partial results if some items cannot be retrieved.
+</Aside>
+
+## Transactional Writes
+
+The `TransactWrite` command enables you to perform multiple write operations in a single atomic transaction. This commands works slightly differently than other Document Builder commands in that it wraps *other* commands into a single prepared transaction.
+
+```ts
+const transactWrite = new TransactWrite({
+  writes: [
+    new Put({
+      item: {
+        userId: '123',
+        todoId: '456',
+        title: 'Take out the trash',
+        completed: false,
+      },
+    }),
+    new Delete({
+      key: {
+        userId: '789',
+        todoId: '101',
+      },
+    }),
+  ],
+});
+```
+
+In the above example, a `Put` and `Delete` command are wrapped into a single transaction. Either both operations will succeed, or neither will be applied.
+
+### Supported Write Operations
+
+`TransactWrite` supports the following commands that can be passed as `writes`:
+
+- [`Put`](/guides/commands/put)
+- [`Update`](/guides/commands/update)
+- [`Delete`](/guides/commands/delete)
+- [`ConditionalPut`](/guides/commands/put#conditional-puts)
+- [`ConditionalUpdate`](/guides/commands/update#conditional-updates)
+- [`ConditionalDelete`](/guides/commands/delete#conditional-deletes)
+
+### Condition Checks
+
+While `TransactWrite` supports all of the conditional version of writes (such as `ConditionalPut`), these conditions are scoped to the individual write operation. For use cases when you want to add a separate condition check to the transaction, you can use the special `ConditionCheck` command.
+
+```ts
+const transactWrite = new TransactWrite({
+  writes: [
+    new ConditionCheck({
+      key: {
+        userId: '123',
+        todoId: '456',
+      },
+      condition: {
+        completed: false,
+      }
+    }),
+    new Update({
+      key: {
+        userId: '123',
+        todoId: '456',
+      },
+      updates: {
+        completed: true,
+      },
+    }),
+  ],
+});
+```
+
+This command can *only* be used in the context of a `TransactWrite` operation.
+
+<Aside type='tip' title='Defining Conditions'>
+Document Builder provides a expressive API for defining conditions over DynamoDB's base `ConditionExpression`, see [Conditions](/guides/advanced/conditions) for more details.
+</Aside>
+
+## Transact Get Command Config
+
+The `TransactGet` command expects the following input config:
+```ts
+{
+  keys: Array<Partial<Schema>>;
+  skipValidation?: boolean;
+  timeoutMs?: number;
+  abortController?: AbortController;
+  returnConsumedCapacity?: ReturnConsumedCapacity;
+}
+```
+
+<ConfigTable>
+  <PropTableEntry name='keys' type='Array&lt;Partial&lt;Schema&gt;&gt;' required>
+    An array of primary keys for the items to retrieve transactionally. Each key should contain the attributes that make up the primary key. If using [computed primary keys](/guides/entities/#computed-primary-keys), only include the attributes used by your key builder functions.
+  </PropTableEntry>
+</ConfigTable>
+
+## Transact Get Command Result
+
+The `TransactGet` command returns the following result:
+```ts
+{
+  items: Array<Schema | undefined>;
+  responseMetadata?: ResponseMetadata;
+  consumedCapacity?: ConsumedCapacity;
+}
+```
+
+<ResultTable>
+  <PropTableEntry name='items' type='Array&lt;Schema | undefined&gt;'>
+    An array of retrieved items in the same order as the keys provided.
+    An item will be `undefined` if no item was found for the corresponding key.
+  </PropTableEntry>
+</ResultTable>
+
+## Transact Write Command Config
+
+The `TransactWrite` command expects the following input config:
+```ts
+{
+  writes: WriteTransactable<Schema>[];
+  idempotencyToken?: string;
+  returnItemCollectionMetrics?: ReturnItemCollectionMetrics;
+  skipValidation?: boolean;
+  timeoutMs?: number;
+  abortController?: AbortController;
+  returnConsumedCapacity?: ReturnConsumedCapacity;
+}
+```
+
+<ConfigTable>
+  <PropTableEntry name='writes' type='WriteTransactable&lt;Schema&gt;[]' required>
+    An array of write operations to execute transactionally. Valid write operations include `Put`, `ConditionalPut`, `Update`, `ConditionalUpdate`, `Delete`, `ConditionalDelete`, and `ConditionCheck` commands.
+  </PropTableEntry>
+  <PropTableEntry name='idempotencyToken' type='string'>
+    A unique token for ensuring idempotent transactions. If the same token is provided within 10 minutes, DynamoDB will treat it as a duplicate request.
+  </PropTableEntry>
+  <PropTableEntry name='returnItemCollectionMetrics' type='ReturnItemCollectionMetrics'>
+    Determines whether item collection metrics are returned.
+    Valid values are `SIZE` and `NONE`.
+  </PropTableEntry>
+</ConfigTable>
+
+## Transact Write Command Result
+
+The `TransactWrite` command returns the following result:
+```ts
+{
+  responseMetadata?: ResponseMetadata;
+  consumedCapacity?: ConsumedCapacity[];
+  itemCollectionMetrics?: ItemCollectionMetrics;
+}
+```
+
+<PropTable>
+  <PropTableEntry name='responseMetadata?' type='ResponseMetadata'>
+    Metadata about the response from DynamoDB.
+  </PropTableEntry>
+  <PropTableEntry name='consumedCapacity?' type='ConsumedCapacity[]'>
+    An array of consumed capacity units for each table or index accessed during the transaction, if requested via `returnConsumedCapacity`.
+  </PropTableEntry>
+  <PropTableEntry name='itemCollectionMetrics?' type='ItemCollectionMetrics'>
+    Information about item collection metrics, if requested via `returnItemCollectionMetrics`.
+  </PropTableEntry>
+</PropTable>
+
+## Tree-shakable Imports
+
+```ts
+import { TransactGet } from 'dynamo-document-builder/commands/transact-get';
+import { TransactWrite } from 'dynamo-document-builder/commands/transact-write';
+import { ConditionCheck } from 'dynamo-document-builder/commands/condition-check';
+```
+
+## API Reference
+
+- [`TransactGet`](/api-reference/classes/transactget)
+- [`TransactGetConfig`](/api-reference/type-aliases/transactgetconfig)
+- [`TransactGetResult`](/api-reference/type-aliases/transactgetresult)
+- [`TransactWrite`](/api-reference/classes/transactwrite)
+- [`TransactWriteConfig`](/api-reference/type-aliases/transactwriteconfig)
+- [`TransactWriteResult`](/api-reference/type-aliases/transactwriteresult)
+- [`ConditionCheck`](/api-reference/classes/conditioncheck)
+- [`ConditionCheckConfig`](/api-reference/type-aliases/conditioncheckconfig)

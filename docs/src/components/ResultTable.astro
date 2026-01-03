@@ -1,0 +1,14 @@
+---
+import PropTable from './PropTable.astro'
+import PropTableEntry from './PropTableEntry.astro'
+---
+
+<PropTable>
+  <slot />
+  <PropTableEntry name='responseMetadata?' type='ResponseMetadata'>
+    <a href='https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/Package/-smithy-types/Interface/ResponseMetadata'>Metadata</a> about the response from DynamoDB.
+  </PropTableEntry>
+  <PropTableEntry name='consumedCapacity?' type='ConsumedCapacity'>
+    Information about the capacity units consumed by the operation, if requested via the <code>returnConsumedCapacity</code> config.
+  </PropTableEntry>
+</PropTable>

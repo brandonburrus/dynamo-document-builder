@@ -1,0 +1,42 @@
+---
+title: Getting Started
+description: How to get started with Document Builder.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import { PackageManagers } from 'starlight-package-managers'
+
+Get started by installing Document Builder and its peer dependencies:
+
+<PackageManagers pkg='dynamo-document-builder zod @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb' />
+
+## Define your Table
+
+Document Builder follows [Single Table](https://www.alexdebrie.com/posts/dynamodb-single-table) design, to get started we'll first need to define our table:
+
+```ts
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
+import { DynamoTable } from 'dynamo-document-builder';
+
+const dynamoClient = new DynamoDBClient();
+const documentClient = DynamoDBDocumentClient.from(dynamoClient);
+
+const exampleTable = new DynamoTable({
+  name: 'ExampleTable',
+  documentClient,
+  keyNames: {
+    partitionKey: 'PK',
+    sortKey: 'SK',
+  },
+});
+```
+
+<Aside variant="info" title="Note about table creation">
+  Dynamo Document Builder does not handle the actual creation of your DynamoDB table.
+  For that its recommended to use an infra-as-code tool such as the [AWS CDK](https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_dynamodb-readme.html)
+  or [Terraform](https://registry.terraform.io/providers/-/aws/6.13.0/docs/resources/dynamodb_table).
+</Aside>
+
+Now that we have our table, we can define the entities that belong to it.
+

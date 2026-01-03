@@ -1,0 +1,8 @@
+@layer my-reset, starlight, rapide, overrides;
+
+@layer overrides {
+  :root {
+    --sl-sidebar-width: 17rem;
+    --sl-content-width: 54rem;
+  }
+}

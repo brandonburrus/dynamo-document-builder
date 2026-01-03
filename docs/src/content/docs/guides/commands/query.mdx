@@ -1,0 +1,522 @@
+---
+title: Query
+description: A guide on Query operations using Dynamo Document Builder.
+---
+
+import ConfigTable from '../../../../components/ConfigTable.astro';
+import ResultTable from '../../../../components/ResultTable.astro';
+import PropTableEntry from '../../../../components/PropTableEntry.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+Use the `Query` command to retrieve multiple items from DynamoDB based on an item query. This is the Document Builder command for a [`Query`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html) operation.
+
+## Basic Usage
+
+Query items by their partition key. This retrieves all items with a matching partition key value.
+
+```ts
+import { Query } from 'dynamo-document-builder/commands/query';
+import { key } from 'dynamo-document-builder';
+
+const todoEntity = new DynamoEntity({
+  table: parentTable,
+  schema: z.object({
+    userId: z.string(),
+    todoId: z.string(),
+    title: z.string(),
+    completed: z.boolean(),
+    createdAt: z.string(),
+  }),
+  partitionKey: todo => key('USER', todo.userId),
+  sortKey: todo => key('TODO', todo.todoId),
+});
+
+// Query all todos for a specific user
+const queryCommand = new Query({
+  key: {
+    userId: '123',
+  },
+});
+
+const result = await todoEntity.send(queryCommand);
+console.log(result.items); // Array of all todos for user 123
+console.log(result.count); // Number of items returned
+```
+
+## Sort Key Condition
+
+Use `sortKeyCondition` to define conditions on the sort key when querying items.
+
+```ts
+const query = new Query({
+  key: {
+    userId: '123',
+  },
+  sortKeyCondition: {
+    SK: beginsWith('TODO#'),
+  },
+});
+
+const result = await todoEntity.send(query);
+const allUsersTodos = result.items;
+```
+
+<Aside type='caution' title='Directly Reference the Sort Key'>
+Note that the sort key condition directly references the sort key attribute name (`SK` in this case). Entity Key Builders are *not* able to be applied to the sort key in this context.
+</Aside>
+
+<Aside type='tip' title='Defining Conditions'>
+Both `sortKeyCondition` and `filter` use the Document Builder conditions expressive API over DynamoDB's base `ConditionExpression`, see [Conditions](/guides/advanced/conditions) for more details.
+</Aside>
+
+## Query Filtering
+
+Use `filter` to apply additional filtering on non-key attributes.
+
+```ts
+const orderEntity = new DynamoEntity({
+  table: parentTable,
+  schema: z.object({
+    userId: z.string(),
+    orderId: z.string(),
+    status: z.enum(['pending', 'completed', 'canceled']),
+    total: z.number().min(0),
+    createdAt: z.string(),
+  }),
+  partitionKey: order => key('USER', order.userId),
+  sortKey: order => key('ORDER', order.createdAt, 'ORDER_ID', order.orderId),
+});
+
+const queryCommand = new Query({
+  key: {
+    userId: '123',
+  },
+  sortKeyCondition: {
+    SK: beginsWith('ORDER#2024'),
+  },
+  filter: and(
+    { status: 'completed' },
+    { total: greaterThan(100) }
+  ),
+});
+
+const result = await orderEntity.send(queryCommand);
+```
+
+<Aside type='note' title='Order of Operations'>
+  The `sortKeyCondition` is applied during the query operation and reduces read capacity. The `filter` is applied after items are read, so you still pay for reading all items that match the key condition.
+</Aside>
+
+## Secondary Indexes
+
+Query Global Secondary Indexes (GSI) or Local Secondary Indexes (LSI) using the `index` parameter instead of `key`.
+
+```ts
+const todoEntity = new DynamoEntity({
+  table: parentTable,
+  schema: z.object({
+    userId: z.string(),
+    todoId: z.string(),
+    status: z.enum(['pending', 'in-progress', 'completed']),
+    dueDate: z.string(),
+    title: z.string(),
+  }),
+  partitionKey: todo => key('USER', todo.userId),
+  sortKey: todo => key('TODO', todo.todoId),
+  globalSecondaryIndexes: {
+    StatusIndex: {
+      partitionKey: todo => key('STATUS', todo.status),
+      sortKey: todo => todo.dueDate,
+    },
+  },
+});
+
+const queryCommand = new Query({
+  index: {
+    StatusIndex: {
+      status: 'in-progress',
+    },
+  },
+  sortKeyCondition: {
+    GSI1SK: beginsWith('2024-01'),
+  },
+});
+
+const result = await todoEntity.send(queryCommand);
+```
+
+<Aside type='note' title='Key or Index'>
+  You must provide either `key` or `index` in a query, but *not* both.
+</Aside>
+
+## Projection Queries
+
+Use `ProjectedQuery` to retrieve only specific attributes from items.
+
+```ts
+import { ProjectedQuery } from 'dynamo-document-builder/commands/projected-query';
+
+// Define a schema for the projected attributes
+const projectionSchema = z.object({
+  title: z.string(),
+  completed: z.boolean(),
+});
+
+const projectedQueryCommand = new ProjectedQuery({
+  key: {
+    userId: '123',
+  },
+  projection: ['title', 'completed'],
+  projectionSchema,
+  sortKeyCondition: {
+    SK: beginsWith('TODO#'),
+  },
+});
+
+const result = await todoEntity.send(projectedQueryCommand);
+// result.items is typed as Array<{ title: string; completed: boolean; }>
+console.log(result.items[0]?.title);
+```
+
+<Aside type='tip' title='Reducing costs by using Projections'>
+Projection expressions are useful when working with large items but only needing a subset of attributes. This reduces the amount of data transferred and can lower read capacity costs.
+</Aside>
+
+## Query Limiting
+
+Use the `limit` parameter to restrict the maximum number of items returned by a query.
+
+```ts
+const queryCommand = new Query({
+  key: {
+    userId: '123',
+  },
+  limit: 10,
+});
+
+const result = await todoEntity.send(queryCommand);
+// Returns at most 10 items
+console.log(result.items.length); // <= 10
+
+if (result.lastEvaluatedKey) {
+  // More items are available
+  const nextQuery = new Query({
+    key: {
+      userId: '123',
+    },
+    limit: 10,
+    exclusiveStartKey: result.lastEvaluatedKey,
+  });
+  const nextResult = await todoEntity.send(nextQuery);
+}
+```
+
+<Aside type='note' title='Limit Evaluation'>
+The `limit` parameter sets the maximum number of items to *evaluate* (before filtering), not necessarily the number returned. If you use a filter condition, the actual number of items returned may be less than the limit.
+</Aside>
+
+## Consistent Reads
+
+Set `consistent` to `true` for strongly consistent query reads.
+
+```ts
+const queryCommand = new Query({
+  key: {
+    userId: '123',
+  },
+  sortKeyCondition: {
+    SK: beginsWith('TODO#'),
+  },
+  consistent: true,
+});
+
+const result = await todoEntity.send(queryCommand);
+```
+
+<Aside type='caution' title='Consistent Reads are Expensive'>
+Consistent reads consume twice as much read capacity as eventually consistent reads and are not supported on Global Secondary Indexes. Only use when absolutely necessary.
+</Aside>
+
+## Reverse Index Scan
+
+Set `reverseIndexScan` to `true` to query items in descending sort key order instead of ascending.
+
+```ts
+const todoEntity = new DynamoEntity({
+  table: parentTable,
+  schema: z.object({
+    userId: z.string(),
+    todoId: z.string(),
+    createdAt: z.iso.datetime(),
+    title: z.string(),
+  }),
+  partitionKey: todo => key('USER', todo.userId),
+  sortKey: todo => todo.createdAt,
+});
+
+const queryCommand = new Query({
+  key: {
+    userId: '123',
+  },
+  reverseIndexScan: true,
+  limit: 10,
+});
+
+const result = await todoEntity.send(queryCommand);
+```
+
+## Query Pagination
+
+Document Builder provides automatic pagination support using async generators.
+
+```ts
+const query = new Query({
+  key: { userId: '123' },
+  pageSize: 50, // Items per page
+});
+
+for await (const page of todoEntity.paginate(query)) {
+  console.log(`Page with ${page.count} items`);
+  processItems(page.items);
+  
+  // Break early if needed
+  if (page.items.some(item => item.completed)) {
+    break;
+  }
+}
+```
+
+Note the important difference of using `paginate()` on the entity instead of `send()`.
+
+<Aside type="tip" title='Page Size'>
+Use the `pageSize` parameter to control how many items are fetched per request when using pagination.
+</Aside>
+
+## Query Command Config
+
+The `Query` command expects the following input config:
+```ts
+{
+  key: Partial<Schema>;
+  index: {
+    [indexName: string]: Partial<Schema>;
+  };
+  sortKeyCondition?: Condition;
+  filter?: Condition;
+  limit?: number;
+  selectAttributes?: Select;
+  reverseIndexScan?: boolean;
+  validationConcurrency?: number;
+  exclusiveStartKey?: Partial<Schema>;
+  pageSize?: number;
+  consistent?: boolean;
+  skipValidation?: boolean;
+  timeoutMs?: number;
+  abortController?: AbortController;
+  returnConsumedCapacity?: ReturnConsumedCapacity;
+}
+```
+
+Either `key` or `index` is required, but *not* both.
+
+<ConfigTable>
+  <PropTableEntry name='key' type='Partial&lt;Schema&gt;' required>
+    The primary key of the item to retrieve. If using [computed primary keys](/guides/entities/#computed-primary-keys), only include the attributes used by your key builder functions. Otherwise this should be the attributes that make up the full primary key (partition key and sort key, if applicable).
+  </PropTableEntry>
+  <PropTableEntry name='index' type='Record&lt;string, Partial&lt;Schema&gt;&gt;' required>
+    An object where the keys are the names of secondary indexes and the values are the key attributes for the partition key of that index.
+    Not required if using `key`.
+  </PropTableEntry>
+  <PropTableEntry name='sortKeyCondition' type='Condition'>
+    A condition to apply to the sort key of the primary key or secondary index being queried.
+    See [Conditions](guides/advanced/conditions) for more details on building conditions.
+  </PropTableEntry>
+  <PropTableEntry name='filter' type='Condition'>
+    A filter condition to apply to the results of the query.
+    See [Conditions](guides/advanced/conditions) for more details on building conditions.
+  </PropTableEntry>
+  <PropTableEntry name='limit' type='number'>
+    The maximum number of total items to return in the query.
+  </PropTableEntry>
+  <PropTableEntry name='selectAttributes' type='Select'>
+    Specify a subset of attributes to retrieve from the items returned by the query.
+    Valid values are `ALL_ATTRIBUTES`, `ALL_PROJECTED_ATTRIBUTES`, `COUNT`, and `SPECIFIC_ATTRIBUTES`.
+  </PropTableEntry>
+  <PropTableEntry name='reverseIndexScan' type='boolean' defaultValue='false'>
+    If set to true, the query will scan the index in reverse order (from highest to lowest sort key).
+  </PropTableEntry>
+  <PropTableEntry name='validationConcurrency' type='number'>
+    The number of concurrent validations to perform when validating items against the entity schema.
+    Internally [`p-map`](https://github.com/sindresorhus/p-map) is used to manage concurrency, default is `64`.
+  </PropTableEntry>
+  <PropTableEntry name='exclusiveStartKey' type='Partial&lt;Schema&gt;'>
+    The primary key of the item from which to continue an earlier query.
+    This is used for pagination when a previous query returned a `lastEvaluatedKey`.
+  </PropTableEntry>
+  <PropTableEntry name='pageSize' type='number'>
+    The number of items per paginated request to DynamoDB.
+    Only applies when using Document Builder's pagination.
+  </PropTableEntry>
+  <PropTableEntry name='consistent?' type='boolean' defaultValue='false'>
+    If set to true, DynamoDB will ensure a strongly consistent read.
+  </PropTableEntry>
+</ConfigTable>
+
+## Query Command Result
+
+The `Query` command returns the following result:
+```ts
+{
+  items: Schema[];
+  count: number;
+  scannedCount: number;
+  lastEvaluatedKey?: Partial<Schema>;
+  responseMetadata?: ResponseMetadata;
+  consumedCapacity?: ConsumedCapacity;
+}
+```
+
+<ResultTable>
+  <PropTableEntry name='items' type='Schema[]'>
+    An array of items matching the query.
+    Will be an empty array if no items matched.
+  </PropTableEntry>
+  <PropTableEntry name='count' type='number'>
+    The number of items returned in the `items` array.
+  </PropTableEntry>
+  <PropTableEntry name='scannedCount' type='number'>
+    The number of items that were scanned in DynamoDB to produce the results.
+    This may be higher than `count` if a filter condition was applied.
+  </PropTableEntry>
+  <PropTableEntry name='lastEvaluatedKey?' type='Partial&lt;Schema&gt;'>
+    If present, indicates that there are more items to retrieve for the query.
+    This key can be used as the `exclusiveStartKey` in a subsequent query to continue retrieving results.
+  </PropTableEntry>
+</ResultTable>
+
+## Projected Query Command Config
+
+The `ProjectedQuery` command expects the following input config:
+```ts
+{
+  key: Partial<Schema>;
+  index: {
+    [indexName: string]: Partial<Schema>;
+  };
+  projection: string[];
+  projectionSchema: ZodObject;
+  sortKeyCondition?: Condition;
+  filter?: Condition;
+  limit?: number;
+  selectAttributes?: Select;
+  reverseIndexScan?: boolean;
+  validationConcurrency?: number;
+  exclusiveStartKey?: Partial<Schema>;
+  pageSize?: number;
+  consistent?: boolean;
+  skipValidation?: boolean;
+  timeoutMs?: number;
+  abortController?: AbortController;
+  returnConsumedCapacity?: ReturnConsumedCapacity;
+}
+```
+
+Either `key` or `index` is required, but *not* both.
+
+<ConfigTable>
+  <PropTableEntry name='key' type='Partial&lt;Schema&gt;' required>
+    The primary key of the item to retrieve. If using [computed primary keys](/guides/entities/#computed-primary-keys), only include the attributes used by your key builder functions. Otherwise this should be the attributes that make up the full primary key (partition key and sort key, if applicable).
+  </PropTableEntry>
+  <PropTableEntry name='index' type='Record&lt;string, Partial&lt;Schema&gt;&gt;' required>
+    An object where the keys are the names of secondary indexes and the values are the key attributes for the partition key of that index.
+    Not required if using `key`.
+  </PropTableEntry>
+  <PropTableEntry name='projection' type='string[]' required>
+    An array of attribute names to include in the returned items.
+  </PropTableEntry>
+  <PropTableEntry name='projectionSchema' type='ZodObject' required>
+    A Zod schema defining the shape of the projected items.
+  </PropTableEntry>
+  <PropTableEntry name='sortKeyCondition' type='Condition'>
+    An optional condition to apply to the sort key of the primary key or secondary index being queried.
+    See [Conditions](guides/advanced/conditions) for more details on building conditions.
+  </PropTableEntry>
+  <PropTableEntry name='filter' type='Condition'>
+    An optional filter condition to apply to the results of the query.
+    See [Conditions](guides/advanced/conditions) for more details on building conditions.
+  </PropTableEntry>
+  <PropTableEntry name='limit' type='number'>
+    The maximum number of total items to return in the query.
+  </PropTableEntry>
+  <PropTableEntry name='selectAttributes' type='Select'>
+    Specify a subset of attributes to retrieve from the items returned by the query.
+    Valid values are `ALL_ATTRIBUTES`, `ALL_PROJECTED_ATTRIBUTES`, `COUNT`, and `SPECIFIC_ATTRIBUTES`.
+  </PropTableEntry>
+  <PropTableEntry name='reverseIndexScan' type='boolean' defaultValue='false'>
+    If set to true, the query will scan the index in reverse order (from highest to lowest sort key).
+  </PropTableEntry>
+  <PropTableEntry name='validationConcurrency' type='number'>
+    The number of concurrent validations to perform when validating items against the entity schema.
+    Internally [`p-map`](https://github.com/sindresorhus/p-map) is used to manage concurrency, default is `64`.
+  </PropTableEntry>
+  <PropTableEntry name='exclusiveStartKey' type='Partial&lt;Schema&gt;'>
+    The primary key of the item from which to continue an earlier query.
+    This is used for pagination when a previous query returned a `lastEvaluatedKey`.
+  </PropTableEntry>
+  <PropTableEntry name='pageSize' type='number'>
+    The number of items per paginated request to DynamoDB.
+    Only applies when using Document Builder's pagination.
+  </PropTableEntry>
+  <PropTableEntry name='consistent?' type='boolean' defaultValue='false'>
+    If set to true, DynamoDB will ensure a strongly consistent read.
+  </PropTableEntry>
+</ConfigTable>
+
+## Projected Query Command Result
+
+The `ProjectedQuery` command returns the following result:
+```ts
+{
+  items: ProjectionSchema[];
+  count: number;
+  scannedCount: number;
+  lastEvaluatedKey?: Partial<Schema>;
+  responseMetadata?: ResponseMetadata;
+  consumedCapacity?: ConsumedCapacity;
+}
+```
+
+<ResultTable>
+  <PropTableEntry name='items' type='ProjectionSchema[]'>
+    An array of items matching the query.
+    Will be an empty array if no items matched.
+    Unlike the standard `Query`, these items will be typed according to the provided projection schema.
+  </PropTableEntry>
+  <PropTableEntry name='count' type='number'>
+    The number of items returned in the `items` array.
+  </PropTableEntry>
+  <PropTableEntry name='scannedCount' type='number'>
+    The number of items that were scanned in DynamoDB to produce the results.
+    This may be higher than `count` if a filter condition was applied.
+  </PropTableEntry>
+  <PropTableEntry name='lastEvaluatedKey?' type='Partial&lt;Schema&gt;'>
+    If present, indicates that there are more items to retrieve for the query.
+    This key can be used as the `exclusiveStartKey` in a subsequent query to continue retrieving results.
+  </PropTableEntry>
+</ResultTable>
+
+## Tree-shakable Imports
+
+```ts
+import { Query } from 'dynamo-document-builder/commands/query';
+import { ProjectedQuery } from 'dynamo-document-builder/commands/projected-query';
+```
+
+## API Reference
+
+- [`Query`](/api-reference/classes/query)
+- [`QueryConfig`](/api-reference/type-aliases/queryconfig)
+- [`QueryResult`](/api-reference/type-aliases/queryresult)
+- [`ProjectedQuery`](/api-reference/classes/projectedquery)
+- [`ProjectedQueryConfig`](/api-reference/type-aliases/projectedqueryconfig)
+- [`ProjectedQueryResult`](/api-reference/type-aliases/projectedqueryresult)

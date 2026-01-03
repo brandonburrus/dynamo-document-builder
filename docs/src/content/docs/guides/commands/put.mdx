@@ -1,0 +1,210 @@
+---
+title: Put
+description: A guide on Put operations using Dynamo Document Builder.
+---
+
+import ConfigTable from '../../../../components/ConfigTable.astro';
+import ResultTable from '../../../../components/ResultTable.astro';
+import PropTableEntry from '../../../../components/PropTableEntry.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+Use the `Put` command to create or replace a single item in DynamoDB. This is the Document Builder command for a [`PutItem`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_PutItem.html) operation.
+
+## Basic Usage
+
+Insert an item.
+
+```ts
+const todoEntity = new DynamoEntity({
+  table: parentTable,
+  schema: z.object({
+    todoId: z.string(),
+    userId: z.string(),
+    title: z.string(),
+    completed: z.boolean(),
+  }),
+  partitionKey: todo => key('USER', todo.userId),
+  sortKey: todo => key('TODO', todo.todoId),
+});
+
+const putCommand = new Put({
+  item: {
+    userId: '123',
+    todoId: '456',
+    title: 'Take out the trash',
+    completed: false,
+  },
+});
+
+await todoEntity.send(putCommand);
+```
+
+## Returning the Previous Item
+
+You can request that the put operation return the item's attributes as they appeared before the put operation, in case you are overwriting an existing item. To do this, set the `returnValues` parameter in the command config.
+
+```ts
+const putCommand = new Put({
+  item: {
+    userId: '123',
+    todoId: '456',
+    title: 'Take out the trash',
+    completed: false,
+  },
+  returnValues: 'ALL_OLD',
+});
+
+const putResult = await todoEntity.send(putCommand);
+console.log(putResult.returnItem);
+```
+
+<Aside type='note' title='Return Item Type'>
+The `returnItem` type is always a `Partial<T>` of your schema type, since the previous item may not exist or might only contain a subset of attributes.
+</Aside>
+
+## Conditional Puts
+
+You can perform a put that only succeeds if a specified condition is met. To do this, use the `ConditionalPut` command and provide a `condition` in the command config.
+
+```ts
+const conditionalPut = new ConditionalPut({
+  item: {
+    userId: '123',
+    todoId: '456',
+    title: 'Take out the trash',
+    completed: true,
+  },
+  condition: {
+    completed: false,
+  },
+});
+
+await todoEntity.send(conditionalPut);
+```
+
+In the above example, the put will only succeed if the existing item's `completed` attribute is `false`.
+
+<Aside type='tip' title='Defining Conditions'>
+Document Builder provides a expressive API for defining conditions over DynamoDB's base `ConditionExpression`, see [Conditions](/guides/advanced/conditions) for more details.
+</Aside>
+
+## Put Command Config
+
+The `Put` command accepts the following input config:
+```ts
+{
+  item: Schema;
+  returnValues?: ReturnValue;
+  returnItemCollectionMetrics?: ReturnItemCollectionMetrics;
+  skipValidation?: boolean;
+  timeoutMs?: number;
+  abortController?: AbortController;
+  returnConsumedCapacity?: ReturnConsumedCapacity;
+}
+```
+
+<ConfigTable>
+  <PropTableEntry name='item' type='Schema' required>
+    The item to put into the table (`Schema` is the inferred type of your schema).
+  </PropTableEntry>
+  <PropTableEntry name='returnValues?' type='ReturnValue'>
+    Use this to request that the put operation return the item's attributes as they appeared before the put operation, in case you are overwriting an existing item. Valid values are `ALL_OLD`, `ALL_NEW`, `UPDATED_OLD`, `UPDATED_NEW`, and `NONE`.
+  </PropTableEntry>
+  <PropTableEntry name='returnItemCollectionMetrics?' type='ReturnItemCollectionMetrics'>
+    Use this to request that the put operation return information about item collections, if any, that were affected by the operation. Valid values are `SIZE` and `NONE`.
+  </PropTableEntry>
+</ConfigTable>
+
+## Put Command Result
+
+The `Put` command returns the following result:
+```ts
+{
+  returnItem?: Partial<Schema>;
+  itemCollectionMetrics?: ItemCollectionMetrics;
+  responseMetadata?: ResponseMetadata;
+  consumedCapacity?: ConsumedCapacity;
+}
+```
+
+<ResultTable>
+  <PropTableEntry name='returnItem?' type='Partial&lt;Schema&gt;'>
+    The returned item as they appeared before the put operation, if requested via `returnValues` in the config.
+  </PropTableEntry>
+  <PropTableEntry name='itemCollectionMetrics?' type='ItemCollectionMetrics'>
+    Information about item collections, if any, that were affected by the operation.
+  </PropTableEntry>
+</ResultTable>
+
+## Conditional Put Command Config
+
+The `ConditionalPut` command accepts the following input config:
+```ts
+{
+  item: Schema;
+  condition: Condition;
+  returnValues?: ReturnValue;
+  returnValuesOnConditionCheckFailure?: ReturnValuesOnConditionCheckFailure;
+  returnItemCollectionMetrics?: ReturnItemCollectionMetrics;
+  skipValidation?: boolean;
+  timeoutMs?: number;
+  abortController?: AbortController;
+  returnConsumedCapacity?: ReturnConsumedCapacity;
+}
+```
+
+<ConfigTable>
+  <PropTableEntry name='item' type='Schema' required>
+    The item to put into the table (`Schema` is the inferred type of your schema).
+  </PropTableEntry>
+  <PropTableEntry name='condition' type='Condition' required>
+    A condition that must be satisfied in order for the put operation to succeed.
+    See [Conditions](/guides/advanced/conditions) for more details.
+  </PropTableEntry>
+  <PropTableEntry name='returnValues?' type='ReturnValue'>
+    Use this to request that the put operation return the item's attributes as they appeared before the put operation, in case you are overwriting an existing item. Valid values are `ALL_OLD`, `ALL_NEW`, `UPDATED_OLD`, `UPDATED_NEW`, and `NONE`.
+  </PropTableEntry>
+  <PropTableEntry name='returnValuesOnConditionCheckFailure?' type='ReturnValuesOnConditionCheckFailure'>
+    Use this to request that the put operation return the item's attributes as they appeared before the failed condition check. Valid values are `ALL_OLD` and `NONE`.
+  </PropTableEntry>
+  <PropTableEntry name='returnItemCollectionMetrics?' type='ReturnItemCollectionMetrics'>
+    Use this to request that the put operation return information about item collections, if any, that were affected by the operation. Valid values are `SIZE` and `NONE`.
+  </PropTableEntry>
+</ConfigTable>
+
+## Conditional Put Command Result
+
+The `ConditionalPut` command returns the following result:
+```ts
+{
+  returnItem?: Partial<Schema>;
+  itemCollectionMetrics?: ItemCollectionMetrics;
+  responseMetadata?: ResponseMetadata;
+  consumedCapacity?: ConsumedCapacity;
+}
+```
+
+<ResultTable>
+  <PropTableEntry name='returnItem?' type='Partial&lt;Schema&gt;'>
+    The returned item as they appeared before the put operation, if requested via `returnValues` in the config.
+  </PropTableEntry>
+  <PropTableEntry name='itemCollectionMetrics?' type='ItemCollectionMetrics'>
+    Information about item collections, if any, that were affected by the operation.
+  </PropTableEntry>
+</ResultTable>
+
+## Tree-shakable Imports
+
+```ts
+import { Put } from 'dynamo-document-builder/commands/put';
+import { ConditionalPut } from 'dynamo-document-builder/commands/conditional-put';
+```
+
+## API Reference
+
+- [`Put`](/api-reference/classes/put)
+- [`PutConfig`](/api-reference/type-aliases/putconfig)
+- [`PutResult`](/api-reference/type-aliases/putresult)
+- [`ConditionalPut`](/api-reference/classes/conditionalput)
+- [`ConditionalPutConfig`](/api-reference/type-aliases/conditionalputconfig)
+- [`ConditionalPutResult`](/api-reference/type-aliases/conditionalputresult)

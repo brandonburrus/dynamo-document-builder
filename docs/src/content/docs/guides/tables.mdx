@@ -1,0 +1,107 @@
+---
+title: Tables
+description: Guide on how to define tables using Dynamo Document Builder.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Tables are the foundational building block when using Document Builder, following the [Single Table](https://www.alexdebrie.com/posts/dynamodb-single-table/) design pattern.
+
+Each instance of `DynamoTable` defined in your code should have a corresponding DynamoDB table in AWS.
+
+<Aside type='note'>
+All the code examples in this guide assume there is a corresponding table in DynamoDB named `ExampleTable`.
+</Aside>
+
+## Basic Usage
+
+The only required parameters when defining a `DynamoTable` are the table name and a `DynamoDBDocumentClient` instance.
+
+```ts
+const dynamoDbClient = new DynamoDBClient();
+const docClient = DynamoDBDocumentClient.from(dynamoDbClient);
+
+const exampleTable = new DynamoTable({
+  tableName: 'ExampleTable',
+  documentClient: docClient,
+});
+```
+
+<Aside type='tip'>
+If you're using Lambda, make sure to define your table *outside* of the handler function to avoid recreating the table instance on every function invocation.
+</Aside>
+
+## Key Names
+
+By default, Document Builder will assume that your table is using a composite primary key composed of a partition key named `PK` and a sort key named `SK`.
+
+If your keys are named different, you can specify the names by passing the `keyNames` parameter when defining your table:
+
+```ts
+const exampleTable = new DynamoTable({
+  tableName: 'ExampleTable',
+  documentClient: docClient,
+  keyNames: {
+    partitionKey: 'PartitionKey',
+    sortKey: 'SortKey',
+  },
+});
+```
+
+### Simple Primary Key
+
+If your table is using a simple primary key (aka only using a partition key), you can specify the `sortKey` as `null` to indicate that:
+
+```ts
+const exampleTable = new DynamoTable({
+  tableName: 'ExampleTable',
+  documentClient: docClient,
+  keyNames: {
+    partitionKey: 'PK',
+    sortKey: null,
+  },
+});
+```
+
+### Secondary Indexes
+
+By default if you omit `keyNames`, Document Builder assumes your table only has a `PK` partition key and `SK` sort key with *no* secondary indexes. To define the names of secondary indexes, you can pass a `globalSecondaryIndexes` and/or `localSecondaryIndexes` object to the `keyNames` parameter:
+
+```ts
+const exampleTable = new DynamoTable({
+  tableName: 'ExampleTable',
+  documentClient: docClient,
+  keyNames: {
+    partitionKey: 'PK',
+    sortKey: 'SK',
+    globalSecondaryIndexes: {
+      GSI1: {
+        partitionKey: 'GSI1PK',
+        sortKey: 'GSI1SK',
+      },
+      GSI2: {
+        partitionKey: 'GSI2PK',
+        // sortKey can be omitted if the GSI only has a partition key
+      },
+    },
+    localSecondaryIndexes: {
+      LSI1: {
+        sortKey: 'LSI1SK',
+      },
+    },
+  },
+});
+```
+
+In the above example, `GSI1`, `GSI2`, and `LSI1` are the names of your secondary indexes and are what you use when needing to refer to them elsewhere in your code.
+
+## Tree-shakable Import
+
+```ts
+import { DynamoTable } from 'dynamo-document-builder/table';
+```
+
+## API Reference
+
+- [`DynamoTable`](/api-reference/classes/dynamotable)
+- [`DynamoTableConfig`](/api-reference/type-aliases/dynamotableconfig)

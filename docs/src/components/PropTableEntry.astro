@@ -1,0 +1,12 @@
+---
+const { name, type, required, defaultValue } = Astro.props
+---
+
+<tr>
+  <td><code>{name}</code> {required && <span>(required)</span>}</td>
+  <td style="max-width: 200px;"><code>{type}</code></td>
+  <td style="min-width: 320px;">
+    <slot />
+    {defaultValue && <span>Defaults to <code>{defaultValue}</code>.</span>}
+  </td>
+</tr>

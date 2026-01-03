@@ -1,0 +1,164 @@
+---
+title: Attribute Expression Map
+description: A guide on using attribute expression maps in Dynamo Documnt Builder.
+---
+
+DynamoDB has several APIs that accept `ExpressionAttributeNames` and `ExpressionAttributeValues` parameters to define expressions for filtering, updating, or querying items. Internally when parsing these expressions, a `AttributeExpressionMap` is used to keep track of the mappings between attribute names/values and their placeholders.
+
+## Basic Usage
+
+```ts
+const attributeMap = new AttributeExpressionMap();
+
+attributeMap.add('name', 'John Doe');
+
+attributeMap.addName('age');
+attributeMap.addValue(30);
+
+attributeMap.toDynamoAttributeExpression();
+```
+
+Calling `toDynamoAttributeExpression()` will returns an object containing the `ExpressionAttributeNames` and `ExpressionAttributeValues`:
+
+```ts
+{
+  ExpressionAttributeNames: {
+    '#name': 'name',
+    '#age': 'age',
+  },
+  ExpressionAttributeValues: {
+    ':v1': 'John Doe',
+    ':v2': 30,
+  },
+}
+```
+
+Internally an `AttributeExpressionMap` maintains several maps and sets to ensure that values and names are reused efficiently when added multiple times.
+
+## Adding Names and Values
+
+Use the `addName` and `addValue` methods to add attribute names and values respectively. These methods will return the placeholder strings that can be used in expressions.
+
+```ts
+const namePlaceholder = attributeMap.addName('status'); // returns '#status'
+const valuePlaceholder = attributeMap.addValue('active'); // returns ':v1'
+```
+
+To add both at the same time, use the `add` method which will return the corresponding placeholders for both the name and value as a tuple.
+
+```ts
+const [ namePlaceholder, valuePlaceholder ] = attributeMap.add('status', 'active');
+// returns ['#status', ':v1']
+```
+
+## Checking Name or Value Existence
+
+You can check if a name or value has already been added using the `hasName` and `hasValue` methods:
+
+```ts
+const attributeMap = new AttributeExpressionMap();
+
+attributeMap.addName('status');
+
+const hasName = attributeMap.hasName('status'); // true
+const hasValue = attributeMap.hasValue(42); // false
+```
+
+## Retrieving Placeholders
+
+You can retrieve the placeholder for a given name or value using the `getPlaceholderFromName` and `getPlaceholderFromValue` methods:
+
+```ts
+const attributeMap = new AttributeExpressionMap();
+
+attributeMap.add('id', 123);
+
+attributeMap.getPlaceholderFromName('id'); // '#id'
+attributeMap.getPlaceholderFromValue(123); // ':v1'
+
+attributeMap.getPlaceholderFromName('nonexistent'); // undefined
+```
+
+You can do the reverse lookup using `getNameFromPlaceholder` and `getValueFromPlaceholder` methods:
+
+```ts
+const attributeMap = new AttributeExpressionMap();
+
+attributeMap.add('id', 123);
+
+attributeMap.getNameFromPlaceholder('#id'); // 'id'
+attributeMap.getValueFromPlaceholder(':v1'); // 123
+
+attributeMap.getNameFromPlaceholder('#nonexistent'); // undefined
+```
+
+## Name and Value Counts
+
+You can get the count of unique names and values added to the map using the `getNameCount` and `getValueCount` methods:
+
+```ts
+const attributeMap = new AttributeExpressionMap();
+
+attributeMap.addName('name');
+attributeMap.addValue('John Doe');
+attributeMap.addValue(30);
+
+attributeMap.getNameCount(); // 1
+attributeMap.getValueCount(); // 2
+```
+
+## Converting to DynamoDB Format
+
+You can get the corresponding DynamoDB format for `ExpressionAttributeNames` and `ExpressionAttributeValues` using the `toDynamoAttributeNames` and `toDynamoAttributeValues` methods:
+
+```ts
+const attributeMap = new AttributeExpressionMap();
+
+attributeMap.add('name', 'John Doe');
+attributeMap.addName('age');
+attributeMap.addValue(30);
+
+attributeMap.toDynamoAttributeNames();
+// {
+//   '#name': 'name',
+//   '#age': 'age',
+// }
+
+attributeMap.toDynamoAttributeValues();
+// {
+//   ':v1': 'John Doe',
+//   ':v2': 30,
+// }
+```
+
+Or get both at once using the `toDynamoAttributeExpression` method:
+
+```ts
+const attributeMap = new AttributeExpressionMap();
+
+attributeMap.add('name', 'John Doe');
+attributeMap.addName('age');
+attributeMap.addValue(30);
+
+attributeMap.toDynamoAttributeExpression();
+// {
+//   ExpressionAttributeNames: {
+//     '#name': 'name',
+//     '#age': 'age',
+//   },
+//   ExpressionAttributeValues: {
+//     ':v1': 'John Doe',
+//     ':v2': 30,
+//   },
+// }
+```
+
+## Tree-shakable Import
+
+```ts
+import { AttributeExpressionMap } from 'dynamo-document-builder/attributes/attribute-map';
+```
+
+## API Reference
+
+- [`AttributeExpressionMap`](/api-reference/classes/attributeexpressionmap)

@@ -1,0 +1,20 @@
+---
+import PropTable from './PropTable.astro'
+import PropTableEntry from './PropTableEntry.astro'
+---
+
+<PropTable>
+  <slot />
+  <PropTableEntry name='skipValidation?' type='boolean' defaultValue='false'>
+    If set to true, schema validation is bypassed entirely.
+  </PropTableEntry>
+  <PropTableEntry name='timeoutMs?' type='number'>
+    Number of milliseconds to wait before the operation times out and auto-cancels.
+  </PropTableEntry>
+  <PropTableEntry name='abortController?' type='AbortController'>
+    If you need to abort the commands operation, you can use the <a href='https://developer.mozilla.org/en-US/docs/Web/API/AbortController'>abort controller</a> to signal cancellation.
+  </PropTableEntry>
+  <PropTableEntry name='returnConsumedCapacity?' type='ReturnConsumedCapacity'>
+    Determines the level of detail about provisioned throughput consumption that is returned in the response. Valid values are <code>TOTAL</code>, <code>INDEXES</code>, and <code>NONE</code>.
+  </PropTableEntry>
+</PropTable>

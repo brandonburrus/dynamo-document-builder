@@ -1,0 +1,347 @@
+---
+title: Conditions
+description: A guide on Dynamo Documnt Builder's powerful Conditions API.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Document Builder provides a simple but powerful and expressive API for building DynamoDB `ConditionExpression`s. Several commands use these conditions, all of which use the same underlying Conditions API documented on this page.
+
+Commands that use Conditions include:
+- [`ConditionalPut`](/guides/commands/put#conditional-puts)
+- [`ConditionalUpdate`](/guides/commands/update#conditional-updates)
+- [`ConditionalDelete`](/guides/commands/delete#conditional-deletes)
+- [`Query`](/guides/commands/query)
+- [`Scan`](/guides/commands/scan#scan-filtering)
+- `TransactWrite`'s [`ConditionCheck`](/guides/advanced/transactions#condition-checks)
+
+<br />
+
+<Aside type='note' title='DynamoDB Condition Expressions'>
+Document Builder's Conditions API is a high-level abstraction over DynamoDB's native `ConditionExpression`s.
+You can read more about DynamoDB Conditions Expressions in the [AWS Docs](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.OperatorsAndFunctions.html).
+</Aside>
+
+## Basic Usage
+
+The most basic and simple condition you can make is to check for equality:
+
+```ts
+{
+  someValue: equals(42),
+}
+```
+
+This would build a `ConditionExpression` equivalent to `'someValue = 42'`. All of Document Builder's conditional operators follow this same pattern, where you provide an object with the attribute names as keys and the condition functions as values.
+
+<Aside type='tip' title='Expression Attributes'>
+Document Builder also automatically handles generating the necessary `ExpressionAttributeNames` and `ExpressionAttributeValues` for you when building `ConditionExpression`s as part of its Condition Parser.
+</Aside>
+
+Combining multiple conditions is as simple as adding more key-value pairs to the object:
+
+```ts
+{
+  someValue: equals(42),
+  otherValue: equals(100),
+}
+```
+
+## Comparison Conditions
+
+### Equality
+
+To check if an attribute is equal to a certain value, use the `equals` condition:
+
+```ts
+{
+  orderStatus: equals('shipped'),
+}
+```
+
+Because this is such a common operation, Document Builder will assume equality checks by default if you provide a value directly instead of a condition function:
+
+```ts
+{
+  orderStatus: 'shipped',
+}
+```
+
+The two examples above are equivalent.
+
+### Inequality
+
+To check if an attribute is not equal to a certain value, use the `notEquals` condition:
+
+```ts
+{
+  orderStatus: notEquals('completed'),
+}
+```
+
+### Greater Than or Less Than
+
+Use the `greaterThan` or `lessThan` conditions to check if an attribute is greater than or less than a certain value:
+
+```ts
+{
+  orderTotal: greaterThan(100),
+  itemsInStock: lessThan(50),
+}
+```
+
+Or use `greaterThanOrEqual` or `lessThanOrEqual` for inclusive comparisons:
+
+```ts
+{
+  orderTotal: greaterThanOrEqual(100),
+  itemsInStock: lessThanOrEqual(50),
+}
+```
+
+## Logical Conditions
+
+Logical conditions allow you to combine multiple conditions using logical operators.
+
+### And
+
+Use the `and` condition to combine multiple conditions that must all be true:
+
+```ts
+and(
+  { total: greaterThan(50) },
+  { total: lessThan(200) },
+)
+```
+
+Anywhere in Document Builder where a `Condition` is expected, you can also provide an array of conditions, which will be treated as an implicit `and`:
+
+```ts
+[
+  { total: greaterThan(50) },
+  { total: lessThan(200) },
+]
+```
+
+The two examples above are equivalent.
+
+### Or
+
+Use the `or` condition to combine multiple conditions where at least one must be true:
+
+```ts
+or(
+  { status: equals('pending') },
+  { status: equals('processing') },
+)
+```
+
+### Not
+
+Use the `not` condition to negate a condition:
+
+```ts
+not(
+  { status: equals('cancelled') },
+)
+```
+
+You can combine `not` with other logical conditions to create more complex conditions:
+
+```ts
+and(
+  { status: equals('active') },
+  not(
+    { role: equals('admin') },
+  ),
+)
+```
+
+<Aside type='note' title='Difference Between `not` and `notEquals`'>
+The `not` condition negates an entire condition expression, while `notEquals` specifically checks for inequality on a single attribute.
+In DynamoDB terms, `notEquals` is the `<>` operator, while `not` is the `NOT` operator.
+</Aside>
+
+## Begins With
+
+Use the `beginsWith` condition to check if a string attribute starts with a certain substring:
+
+```ts
+{
+  SK: beginsWith('USER#'),
+}
+```
+
+## Contains
+
+Use the `contains` condition to check one of the following:
+- A string attribute contains a certain substring.
+- A set attribute contains a certain element.
+- A list attribute contains a certain element.
+
+```ts
+{
+  tags: contains('urgent'),
+  title: contains('DynamoDB'),
+}
+```
+
+## Between
+
+Use the `between` condition to check if an attribute's value is within a certain range:
+
+```ts
+{
+  orderTotal: between(100, 500),
+}
+```
+
+The range is *inclusive*, meaning the attribute's value can be equal to either the lower or upper bound (this is equivalent to using the `greaterThanOrEqual` for the lower bound and `lessThanOrEqual` for the upper bound).
+
+## In
+
+Use the `isIn` condition to check if an attribute's value is within a set of specified values:
+
+```ts
+{
+  orderStatus: isIn(['pending', 'processing', 'shipped']),
+}
+```
+
+## Checking Attributes
+
+### Attribute Exists or Not
+
+Use the `exists` and `notExists` conditions to check if an attribute exists or does not exist:
+
+```ts
+{
+  lastLogin: exists(),
+  middleName: notExists(),
+}
+```
+
+This check *only* checks if the attribute exists on the DynamoDB item being checked, regardless of its value (even if the value is `null` or an empty string).
+
+### Attribute Size
+
+Use the `size` condition to check the size of an attribute's value. Depending on the attribute type, size is determined as follows:
+- For strings, size is the number of characters.
+- For lists and maps, size is the number of top-level elements.
+- For sets, size is the number of elements in the set.
+- For binary data, size is the number of bytes.
+
+```ts
+{
+  username: size(greaterThan(5)),
+  tags: size(lessThanOrEqual(10)),
+}
+```
+
+### Attribute Type
+
+Use the `typeIs` condition to check the data type of an attribute.
+
+```ts
+{
+  age: typeIs('N'),
+  isActive: typeIs('BOOL'),
+}
+```
+
+This uses the DynamoDB *type descriptor* as a string for the data type:
+<table>
+  <thead>
+    <tr>
+      <th>Data Type</th>
+      <th>DynamoDB Type Descriptor</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>String</td>
+      <td><code>S</code></td>
+    </tr>
+    <tr>
+      <td>Number</td>
+      <td><code>N</code></td>
+    </tr>
+    <tr>
+      <td>Binary</td>
+      <td><code>B</code></td>
+    </tr>
+    <tr>
+      <td>Boolean</td>
+      <td><code>BOOL</code></td>
+    </tr>
+    <tr>
+      <td>Null</td>
+      <td><code>NULL</code></td>
+    </tr>
+    <tr>
+      <td>Map</td>
+      <td><code>M</code></td>
+    </tr>
+    <tr>
+      <td>List</td>
+      <td><code>L</code></td>
+    </tr>
+    <tr>
+      <td>String Set</td>
+      <td><code>SS</code></td>
+    </tr>
+    <tr>
+      <td>Number Set</td>
+      <td><code>NS</code></td>
+    </tr>
+    <tr>
+      <td>Binary Set</td>
+      <td><code>BS</code></td>
+    </tr>
+  </tbody>
+</table>
+
+You can read more about DynamoDB supported data types in the [AWS Docs](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.NamingRulesDataTypes.html).
+
+## Tree-Shakeable Imports
+
+```ts
+import { equals } from 'dynamodb-document-builder/conditions/equals';
+import { notEquals } from 'dynamodb-document-builder/conditions/not-equals';
+import { greaterThan } from 'dynamodb-document-builder/conditions/greater-than';
+import { greaterThanOrEqual } from 'dynamodb-document-builder/conditions/greater-than-or-equal';
+import { lessThan } from 'dynamodb-document-builder/conditions/less-than';
+import { lessThanOrEqual } from 'dynamodb-document-builder/conditions/less-than-or-equal';
+import { and } from 'dynamodb-document-builder/conditions/and';
+import { or } from 'dynamodb-document-builder/conditions/or';
+import { not } from 'dynamodb-document-builder/conditions/not';
+import { beginsWith } from 'dynamodb-document-builder/conditions/begins-with';
+import { contains } from 'dynamodb-document-builder/conditions/contains';
+import { between } from 'dynamodb-document-builder/conditions/between';
+import { isIn } from 'dynamodb-document-builder/conditions/is-in';
+import { exists } from 'dynamodb-document-builder/conditions/exists';
+import { notExists } from 'dynamodb-document-builder/conditions/not-exists';
+import { size } from 'dynamodb-document-builder/conditions/size';
+import { typeIs } from 'dynamodb-document-builder/conditions/type-is';
+```
+
+## API Reference
+
+- [`equals()`](/api-reference/functions/equals)
+- [`notEquals()`](/api-reference/functions/notequals)
+- [`greaterThan()`](/api-reference/functions/greaterthan)
+- [`greaterThanOrEqual()`](/api-reference/functions/greaterthanorequalto)
+- [`lessThan()`](/api-reference/functions/lessthan)
+- [`lessThanOrEqual()`](/api-reference/functions/lessthanorequalto)
+- [`and()`](/api-reference/functions/and)
+- [`or()`](/api-reference/functions/or)
+- [`not()`](/api-reference/functions/not)
+- [`beginsWith()`](/api-reference/functions/beginswith)
+- [`contains()`](/api-reference/functions/contains)
+- [`between()`](/api-reference/functions/between)
+- [`isIn()`](/api-reference/functions/isin)
+- [`exists()`](/api-reference/functions/exists)
+- [`notExists()`](/api-reference/functions/notexists)
+- [`size()`](/api-reference/functions/size)
+- [`typeIs()`](/api-reference/functions/typeis)
+

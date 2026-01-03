@@ -1,0 +1,87 @@
+---
+title: Parsers
+description: A guide on using low-level parsers in Dynamo Documnt Builder.
+---
+
+Document Builder exposes the low-level parser functions used internally to build DynamoDB expressions for advanced use-cases. Each parser is a pure function that takes in a specific input type and returns the corresponding DynamoDB expression string along with an [`AttributeExpressionMap`](/guides/utilities/attribute-expression-map) that can be used to get the necessary `ExpressionAttributeNames` and `ExpressionAttributeValues`.
+
+## Condition Parser
+
+The `parseCondition` function can be used to parse a [`Condition`](/guides/advanced/conditions) object into a DynamoDB `ConditionExpression`.
+
+```ts
+const myCondition: Condition = {
+  age: greaterThan(21),
+  status: equals('active'),
+};
+
+const { conditionExpression, attributeExpressionMap } = parseCondition(myCondition);
+```
+
+This returns the `ConditionExpression` string along with an [`AttributeExpressionMap`](/guides/utilities/attribute-expression-map) that can be used to get the `ExpressionAttributeNames` and `ExpressionAttributeValues`.
+
+Alternatively, you can pass an existing `AttributeExpressionMap` to the parser function as a secondary parameter to reuse an existing map (useful when using multiple parsers together):
+
+```ts
+const existingMap = new AttributeExpressionMap();
+
+const { conditionExpression } = parseCondition(myCondition, existingMap);
+```
+
+## Update Parser
+
+The `parseUpdate` function can be used to parse an object representing updates into a DynamoDB `UpdateExpression`.
+
+```ts
+const myUpdate: UpdateValues = {
+  value: 42,
+  'nested.attribute': 'newValue',
+  counter: increment(1),
+};
+
+const { updateExpression, attributeExpressionMap } = parseUpdate(myUpdate);
+```
+
+This returns the `UpdateExpression` string along with an [`AttributeExpressionMap`](/guides/utilities/attribute-expression-map) that can be used to get the `ExpressionAttributeNames` and `ExpressionAttributeValues`.
+
+Alternatively, you can pass an existing `AttributeExpressionMap` to the parser function as a secondary parameter to reuse an existing map (useful when using multiple parsers together):
+
+```ts
+const existingMap = new AttributeExpressionMap();
+
+const { updateExpression } = parseUpdate(myUpdate, existingMap);
+```
+
+## Projection Parser
+
+The `parseProjection` function can be used to parse a projection into a DynamoDB `ProjectionExpression`.
+
+```ts
+const myProjection: Projection = ['name', 'age', 'address.city'];
+
+const { projectionExpression, attributeExpressionMap } = parseProjection(myProjection);
+```
+
+This returns the `ProjectionExpression` string along with an [`AttributeExpressionMap`](/guides/utilities/attribute-expression-map) that can be used to get the `ExpressionAttributeNames`.
+
+Alternatively, you can pass an existing `AttributeExpressionMap` to the parser function as a secondary parameter to reuse an existing map (useful when using multiple parsers together):
+
+```ts
+const existingMap = new AttributeExpressionMap();
+
+const { projectionExpression } = parseProjection(myProjection, existingMap);
+```
+
+## Tree-shakeable Imports
+
+```ts
+import { parseCondition } from 'dynamo-document-builder/conditions/condition-parser';
+import { parseUpdate } from 'dynamo-document-builder/updates/update-parser';
+import { parseProjection } from 'dynamo-document-builder/projections/projection-parser';
+```
+
+## API Reference
+
+- [`parseCondition()`](/api-reference/functions/parsecondition)
+- [`parseUpdate()`](/api-reference/functions/parseupdate)
+- [`parseProjection()`](/api-reference/functions/parseprojection)

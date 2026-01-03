@@ -1,7 +1,7 @@
 {
   "name": "dynamo-document-builder",
   "version": "0.1.0",
-  "description": "DynamoDB data modeling and validation made easy using TypeScript & Zod ✨",
+  "description": "DynamoDB single table design and data validation made easy using TypeScript and Zod ⚡️",
   "main": "dist/index.js",
   "keywords": [
     "aws",
@@ -30,6 +30,7 @@
     "build": "rimraf dist && tsc",
     "format": "biome format --write",
     "lint": "biome check --fix",
+    "docs": "cd docs && npm run dev",
     "prepare": "husky",
     "prepublishOnly": "npm run build && npm run lint && npm run test",
     "typecheck": "tsc --noEmit",

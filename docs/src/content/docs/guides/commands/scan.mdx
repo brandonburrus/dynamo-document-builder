@@ -1,0 +1,438 @@
+---
+title: Scan
+description: A guide on Scan operations using Dynamo Document Builder.
+---
+
+import ConfigTable from '../../../../components/ConfigTable.astro';
+import ResultTable from '../../../../components/ResultTable.astro';
+import PropTableEntry from '../../../../components/PropTableEntry.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+Use the `Scan` command to retrieve multiple items from a DynamoDB table. This is the Document Builder command for a [`Scan`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Scan.html) operation.
+
+## Basic Usage
+
+Scan a table to retrieve all items.
+
+```ts
+const todoEntity = new DynamoEntity({
+  table: parentTable,
+  schema: z.object({
+    todoId: z.string(),
+    userId: z.string(),
+    title: z.string(),
+    completed: z.boolean(),
+  }),
+  partitionKey: todo => key('USER', todo.userId),
+  sortKey: todo => key('TODO', todo.todoId),
+});
+
+const { items, lastEvaluatedKey } = await todoEntity.send(new Scan());
+```
+
+## Scan Filtering
+
+Apply filter conditions to reduce the items returned from a scan. Note that filters are applied after reading items, so you still pay for all scanned items.
+
+```ts
+const productEntity = new DynamoEntity({
+  table: parentTable,
+  schema: z.object({
+    productId: z.string(),
+    name: z.string(),
+    price: z.number(),
+    inStock: z.boolean(),
+  }),
+  partitionKey: product => key('PRODUCT', product.productId),
+});
+
+const scanCommand = new Scan({
+  filter: and(
+    { price: greaterThan(10) },
+    { price: lessThan(100) },
+    { inStock: true }
+  ),
+});
+
+const result = await productEntity.send(scanCommand);
+```
+
+<Aside type='caution' title='Scans are Expensive'>
+Scan operations read every item in the table or index, making them expensive. Use Query operations when possible. Filters don't reduce read capacity costs—they only reduce what's returned to you.
+</Aside>
+
+<Aside type='tip' title='Defining Conditions'>
+Document Builder provides a expressive API for defining conditions over DynamoDB's base `ConditionExpression`, see [Conditions](/guides/advanced/conditions) for more details.
+</Aside>
+
+## Secondary Indexes Scans
+
+Scan a Global Secondary Index or Local Secondary Index by specifying the `indexName` parameter.
+
+```ts
+const todoEntity = new DynamoEntity({
+  table: parentTable,
+  schema: z.object({
+    userId: z.string(),
+    todoId: z.string(),
+    status: z.string(),
+    priority: z.number(),
+    title: z.string(),
+  }),
+  partitionKey: todo => key('USER', todo.userId),
+  sortKey: todo => key('TODO', todo.todoId),
+  globalSecondaryIndexes: {
+    StatusIndex: {
+      partitionKey: todo => key('STATUS', todo.status),
+      sortKey: todo => todo.priority,
+    },
+  },
+});
+
+const scanCommand = new Scan({
+  indexName: 'StatusIndex',
+  filter: { priority: greaterThan(5) },
+});
+
+const result = await todoEntity.send(scanCommand);
+```
+
+<Aside type='note' title='Projected Attributes in Secondary Indexes'>
+When scanning a Secondary Index, only attributes projected into that index are available.
+If you need attributes not in the projection, you'll need to fetch the full items separately.
+</Aside>
+
+## Scan Limiting
+
+Use the `limit` parameter to restrict the maximum number of items evaluated during a scan.
+
+```ts
+const scanCommand = new Scan({
+  limit: 100,
+});
+
+const result = await todoEntity.send(scanCommand);
+// Evaluates at most 100 items
+console.log(result.items.length); // <= 100
+
+if (result.lastEvaluatedKey) {
+  // More items are available
+  const nextScan = new Scan({
+    limit: 100,
+    exclusiveStartKey: result.lastEvaluatedKey,
+  });
+  const nextResult = await todoEntity.send(nextScan);
+}
+```
+
+<Aside type='note' title='Limit Evaluation'>
+The `limit` parameter sets the maximum number of items to *evaluate* (before filtering), not necessarily the number returned. If you use a filter condition, the actual number of items returned may be less than the limit.
+</Aside>
+
+## Consistent Reads
+
+Set `consistent` to `true` for strongly consistent reads when you need the most up-to-date data.
+
+```ts
+const scanCommand = new Scan({
+  consistent: true,
+});
+
+const result = await todoEntity.send(scanCommand);
+```
+
+<Aside type='danger' title='Consistent Scans are Super Expensive'>
+Consistent reads consume twice as much read capacity as eventually consistent reads and are not supported on Global Secondary Indexes.
+Only use when **absolutely necessary** (this is quite literally one of the most expensive operations you can do with DynamoDB).
+</Aside>
+
+## Scan Pagination
+
+Document Builder provides automatic pagination support using async generators to process large tables efficiently.
+
+```ts
+const scan = new Scan({
+  filter: { completed: false },
+  pageSize: 100,
+});
+
+for await (const page of todoEntity.paginate(scan)) {
+  console.log(`Page with ${page.count} items`);
+  await processItems(page.items);
+  
+  // Break early if needed
+  if (page.items.length === 0) {
+    break;
+  }
+}
+```
+
+Note the important difference of using `paginate()` on the entity instead of `send()`.
+
+<Aside type='tip' title='Page Size'>
+Use the `pageSize` parameter to control how many items are evaluated per request. This helps manage memory usage and allows for processing items in batches.
+</Aside>
+
+## Projection Scans
+
+Use the `ProjectedScan` command to retrieve only specific attributes from items.
+
+```ts
+const projectedScanCommand = new ProjectedScan({
+  projection: ['title', 'completed'],
+  projectionSchema: z.object({
+    title: z.string(),
+    completed: z.boolean(),
+  }),
+  filter: {
+    completed: false,
+  },
+});
+
+const result = await todoEntity.send(projectedScanCommand);
+// result.items is typed as Array<{ title: string; completed: boolean; }>
+console.log(result.items[0]?.title);
+```
+
+<Aside type='tip' title='Reducing costs by using Projections'>
+Projection expressions are useful when working with large items but only needing a subset of attributes. This reduces the amount of data transferred and can lower read capacity costs.
+</Aside>
+
+## Parallel Scans
+
+For large tables, use `segment` and `totalSegments` to perform a parallel scan.
+
+```ts
+async function parallelScan(totalSegments: number)
+  const allItems = [];
+
+  async function scanSegment(segmentNumber: number) {
+    const scan = new Scan({
+      segment: segmentNumber,
+      totalSegments: totalSegments,
+    });
+    
+    for await (const page of todoEntity.paginate(scan)) {
+      allItems.push(...page.items);
+    }
+  }
+
+  const scanPromises = Array.from({ length: totalSegments }, (_, i) =>
+    scanSegment(i, totalSegments)
+  );
+
+  const results = await Promise.all(scanPromises);
+  return allItems;
+}
+```
+
+## Scan Command Config
+
+The `Scan` command expects the following input config:
+```ts
+{
+  indexName?: string;
+  filter?: Condition;
+  limit?: number;
+  selectAttributes?: Select;
+  consistent?: boolean;
+  validationConcurrency?: number;
+  segment?: number;
+  totalSegments?: number;
+  exclusiveStartKey?: Partial<Schema>;
+  pageSize?: number;
+  skipValidation?: boolean;
+  timeoutMs?: number;
+  abortController?: AbortController;
+  returnConsumedCapacity?: ReturnConsumedCapacity;
+}
+```
+
+All config properties are optional.
+
+<ConfigTable>
+  <PropTableEntry name='indexName' type='string'>
+    The name of a secondary index to scan. If not provided, the table will be scanned.
+  </PropTableEntry>
+  <PropTableEntry name='filter' type='Condition'>
+    An optional filter condition to apply to the results of the scan.
+    See [Conditions](guides/advanced/conditions) for more details on building conditions.
+  </PropTableEntry>
+  <PropTableEntry name='limit' type='number'>
+    The maximum number of items to return in the scan.
+  </PropTableEntry>
+  <PropTableEntry name='selectAttributes' type='Select'>
+    Specify a subset of attributes to retrieve from the items returned by the scan.
+    Valid values are `ALL_ATTRIBUTES`, `ALL_PROJECTED_ATTRIBUTES`, `COUNT`, and `SPECIFIC_ATTRIBUTES`.
+  </PropTableEntry>
+  <PropTableEntry name='consistent?' type='boolean' defaultValue='false'>
+    If set to true, DynamoDB will ensure a strongly consistent read.
+  </PropTableEntry>
+  <PropTableEntry name='validationConcurrency' type='number'>
+    The number of concurrent validations to perform when validating items against the entity schema.
+    Internally [`p-map`](https://github.com/sindresorhus/p-map) is used to manage concurrency, default is `64`.
+  </PropTableEntry>
+  <PropTableEntry name='segment' type='number'>
+    For parallel scans, the segment number to scan (0-based). Must be used with `totalSegments`.
+  </PropTableEntry>
+  <PropTableEntry name='totalSegments' type='number'>
+    For parallel scans, the total number of segments to divide the scan into. Must be used with `segment`.
+  </PropTableEntry>
+  <PropTableEntry name='exclusiveStartKey' type='Partial&lt;Schema&gt;'>
+    The primary key of the item from which to continue an earlier scan.
+    This is used for pagination when a previous scan returned a `lastEvaluatedKey`.
+  </PropTableEntry>
+  <PropTableEntry name='pageSize' type='number'>
+    The number of items per paginated request to DynamoDB.
+    Only applies when using Document Builder's pagination.
+  </PropTableEntry>
+</ConfigTable>
+
+## Scan Command Result
+
+The `Scan` command returns the following result:
+```ts
+{
+  items: Schema[];
+  count: number;
+  scannedCount: number;
+  lastEvaluatedKey?: Partial<Schema>;
+  responseMetadata?: ResponseMetadata;
+  consumedCapacity?: ConsumedCapacity;
+}
+```
+
+<ResultTable>
+  <PropTableEntry name='items' type='Schema[]'>
+    An array of items matching the scan.
+    Will be an empty array if no items matched.
+  </PropTableEntry>
+  <PropTableEntry name='count' type='number'>
+    The number of items returned in the `items` array.
+  </PropTableEntry>
+  <PropTableEntry name='scannedCount' type='number'>
+    The number of items that were scanned in DynamoDB to produce the results.
+    This may be higher than `count` if a filter condition was applied.
+  </PropTableEntry>
+  <PropTableEntry name='lastEvaluatedKey?' type='Partial&lt;Schema&gt;'>
+    If present, indicates that there are more items to retrieve for the scan.
+    This key can be used as the `exclusiveStartKey` in a subsequent scan to continue retrieving results.
+  </PropTableEntry>
+</ResultTable>
+
+## Projected Scan Command Config
+
+The `ProjectedScan` command expects the following input config:
+```ts
+{
+  projection: string[];
+  projectionSchema: ZodObject;
+  indexName?: string;
+  filter?: Condition;
+  limit?: number;
+  selectAttributes?: Select;
+  consistent?: boolean;
+  validationConcurrency?: number;
+  segment?: number;
+  totalSegments?: number;
+  exclusiveStartKey?: Partial<Schema>;
+  pageSize?: number;
+  skipValidation?: boolean;
+  timeoutMs?: number;
+  abortController?: AbortController;
+  returnConsumedCapacity?: ReturnConsumedCapacity;
+}
+```
+
+<ConfigTable>
+  <PropTableEntry name='projection' type='string[]' required>
+    An array of attribute names to include in the returned items.
+  </PropTableEntry>
+  <PropTableEntry name='projectionSchema' type='ZodObject' required>
+    A Zod schema defining the shape of the projected items.
+  </PropTableEntry>
+  <PropTableEntry name='indexName' type='string'>
+    The name of a secondary index to scan. If not provided, the table will be scanned.
+  </PropTableEntry>
+  <PropTableEntry name='filter' type='Condition'>
+    An optional filter condition to apply to the results of the scan.
+    See [Conditions](guides/advanced/conditions) for more details on building conditions.
+  </PropTableEntry>
+  <PropTableEntry name='limit' type='number'>
+    The maximum number of items to return in the scan.
+  </PropTableEntry>
+  <PropTableEntry name='selectAttributes' type='Select'>
+    Specify a subset of attributes to retrieve from the items returned by the scan.
+    Valid values are `ALL_ATTRIBUTES`, `ALL_PROJECTED_ATTRIBUTES`, `COUNT`, and `SPECIFIC_ATTRIBUTES`.
+  </PropTableEntry>
+  <PropTableEntry name='consistent?' type='boolean' defaultValue='false'>
+    If set to true, DynamoDB will ensure a strongly consistent read.
+  </PropTableEntry>
+  <PropTableEntry name='validationConcurrency' type='number'>
+    The number of concurrent validations to perform when validating items against the entity schema.
+    Internally [`p-map`](https://github.com/sindresorhus/p-map) is used to manage concurrency, default is `64`.
+  </PropTableEntry>
+  <PropTableEntry name='segment' type='number'>
+    For parallel scans, the segment number to scan (0-based). Must be used with `totalSegments`.
+  </PropTableEntry>
+  <PropTableEntry name='totalSegments' type='number'>
+    For parallel scans, the total number of segments to divide the scan into. Must be used with `segment`.
+  </PropTableEntry>
+  <PropTableEntry name='exclusiveStartKey' type='Partial&lt;Schema&gt;'>
+    The primary key of the item from which to continue an earlier scan.
+    This is used for pagination when a previous scan returned a `lastEvaluatedKey`.
+  </PropTableEntry>
+  <PropTableEntry name='pageSize' type='number'>
+    The number of items per paginated request to DynamoDB.
+    Only applies when using Document Builder's pagination.
+  </PropTableEntry>
+</ConfigTable>
+
+## Projected Scan Command Result
+
+The `ProjectedScan` command returns the following result:
+```ts
+{
+  items: ProjectionSchema[];
+  count: number;
+  scannedCount: number;
+  lastEvaluatedKey?: Partial<Schema>;
+  responseMetadata?: ResponseMetadata;
+  consumedCapacity?: ConsumedCapacity;
+}
+```
+
+<ResultTable>
+  <PropTableEntry name='items' type='ProjectionSchema[]'>
+    An array of items matching the scan.
+    Will be an empty array if no items matched.
+    Unlike the standard `Scan`, these items will be typed according to the provided projection schema.
+  </PropTableEntry>
+  <PropTableEntry name='count' type='number'>
+    The number of items returned in the `items` array.
+  </PropTableEntry>
+  <PropTableEntry name='scannedCount' type='number'>
+    The number of items that were scanned in DynamoDB to produce the results.
+    This may be higher than `count` if a filter condition was applied.
+  </PropTableEntry>
+  <PropTableEntry name='lastEvaluatedKey?' type='Partial&lt;Schema&gt;'>
+    If present, indicates that there are more items to retrieve for the scan.
+    This key can be used as the `exclusiveStartKey` in a subsequent scan to continue retrieving results.
+  </PropTableEntry>
+</ResultTable>
+
+## Tree-shakable Imports
+
+```ts
+import { Scan } from 'dynamo-document-builder/commands/scan';
+import { ProjectedScan } from 'dynamo-document-builder/commands/projected-scan';
+```
+
+## API Reference
+
+- [`Scan`](/api-reference/classes/scan)
+- [`ScanConfig`](/api-reference/type-aliases/scanconfig)
+- [`ScanResult`](/api-reference/type-aliases/scanresult)
+- [`ProjectedScan`](/api-reference/classes/projectedscan)
+- [`ProjectedScanConfig`](/api-reference/type-aliases/projectedscanconfig)
+- [`ProjectedScanResult`](/api-reference/type-aliases/projectedscanresult)

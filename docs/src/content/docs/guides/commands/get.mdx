@@ -1,0 +1,188 @@
+---
+title: Get
+description: A guide on Get operations using Dynamo Document Builder.
+---
+
+import ConfigTable from '../../../../components/ConfigTable.astro';
+import ResultTable from '../../../../components/ResultTable.astro';
+import PropTableEntry from '../../../../components/PropTableEntry.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+Use the `Get` command to retrieve single items from DynamoDB. This is the Document Builder command for a [`GetItem`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_GetItem.html) operation.
+
+## Basic Usage
+
+Retrieve an item by its primary key.
+
+```ts
+const todoEntity = new DynamoEntity({
+  table: parentTable,
+  schema: z.object({
+    todoId: z.string(),
+    userId: z.string(),
+    title: z.string(),
+    completed: z.boolean(),
+  }),
+  partitionKey: todo => key('USER', todo.userId),
+  sortKey: todo => key('TODO', todo.todoId),
+});
+
+const getCommand = new Get({
+  key: {
+    userId: '123',
+    todoId: '456',
+  },
+});
+
+const getResult = await todoEntity.send(getCommand);
+console.log(getResult.item);
+```
+
+## Consistent Reads
+
+If you need the read to be strongly consistent, you can set the `consistent` parameter to `true`.
+
+```ts
+const getCommand = new Get({
+  key: {
+    userId: '123',
+    todoId: '456',
+  },
+  consistent: true,
+});
+
+const getResult = await todoEntity.send(getCommand);
+```
+
+## Projection Gets
+
+Use the `ProjectedGet` command when you only need specific attributes from an item.
+
+Due to the item being a subset of your entity schema, projection gets require you to provide a Zod schema defining the shape of the projected item.
+
+```ts
+const projectedGet = new ProjectedGet({
+  key: {
+    userId: '123',
+    todoId: '456',
+  },
+  projection: ['title', 'completed'],
+  projectionSchema: z.object({
+    title: z.string(),
+    completed: z.boolean(),
+  }),
+});
+
+const result = await todoEntity.send(projectedGet);
+// result.item is typed as { title: string; completed: boolean; } | undefined
+console.log(result.item?.title);
+```
+
+<Aside type='tip'>
+Projection expressions are useful when working with large items but only needing a subset of attributes. This reduces the amount of data transferred and can lower read capacity costs.
+</Aside>
+
+## Get Command Config
+
+The `Get` command expects the following input config:
+```ts
+{
+  key: Partial<Schema>;
+  consistent?: boolean;
+  skipValidation?: boolean;
+  timeoutMs?: number;
+  abortController?: AbortController;
+  returnConsumedCapacity?: ReturnConsumedCapacity;
+}
+```
+
+<ConfigTable>
+  <PropTableEntry name='key' type='Partial&lt;Schema&gt;' required>
+    The primary key of the item to retrieve. If using [computed primary keys](/guides/entities/#computed-primary-keys), only include the attributes used by your key builder functions. Otherwise this should be the attributes that make up the full primary key (partition key and sort key, if applicable).
+  </PropTableEntry>
+  <PropTableEntry name='consistent?' type='boolean' defaultValue='false'>
+    If set to true, DynamoDB will ensure a strongly consistent read.
+  </PropTableEntry>
+</ConfigTable>
+
+## Get Command Result
+
+The `Get` command returns the following result:
+```ts
+{
+  item?: Schema;
+  responseMetadata?: ResponseMetadata;
+  consumedCapacity?: ConsumedCapacity;
+}
+```
+
+<ResultTable>
+  <PropTableEntry name='item?' type='Schema'>
+    The retrieved item, or `undefined` if no item was found for the provided key.
+  </PropTableEntry>
+</ResultTable>
+
+## Projected Get Command Config
+
+The `ProjectedGet` command expects the following input config:
+```ts
+{
+  key: Partial<Schema>;
+  projection: string[];
+  projectionSchema: ZodObject;
+  consistent?: boolean;
+  skipValidation?: boolean;
+  timeoutMs?: number;
+  abortController?: AbortController;
+  returnConsumedCapacity?: ReturnConsumedCapacity;
+}
+```
+
+<ConfigTable>
+  <PropTableEntry name='key' type='Partial&lt;Schema&gt;' required>
+    The primary key of the item to retrieve. If using [computed primary keys](/guides/entities/#computed-primary-keys), only include the attributes used by your key builder functions. Otherwise this should be the attributes that make up the full primary key (partition key and sort key, if applicable).
+  </PropTableEntry>
+  <PropTableEntry name='projection' type='string[]' required>
+    An array of attribute names to include in the returned item.
+  </PropTableEntry>
+  <PropTableEntry name='projectionSchema' type='ZodObject' required>
+    A Zod schema defining the shape of the projected item.
+  </PropTableEntry>
+  <PropTableEntry name='consistent?' type='boolean' defaultValue='false'>
+    If set to true, DynamoDB will ensure a strongly consistent read.
+  </PropTableEntry>
+</ConfigTable>
+
+## Projected Get Command Result
+
+The `ProjectedGet` command returns the following result:
+```ts
+{
+  item?: ProjectionSchema;
+  responseMetadata?: ResponseMetadata;
+  consumedCapacity?: ConsumedCapacity;
+}
+```
+
+<ResultTable>
+  <PropTableEntry name='item?' type='ProjectionSchema'>
+    The retrieved item, or `undefined` if no item was found for the provided key.
+    Unlike the standard `Get`, this item will be typed according to the provided projection schema.
+  </PropTableEntry>
+</ResultTable>
+
+## Tree-shakable Imports
+
+```ts
+import { Get } from 'dynamo-document-builder/commands/get';
+import { ProjectedGet } from 'dynamo-document-builder/commands/projected-get';
+```
+
+## API Reference
+
+- [`Get`](/api-reference/classes/get)
+- [`GetConfig`](/api-reference/type-aliases/getconfig)
+- [`GetResult`](/api-reference/type-aliases/getresult)
+- [`ProjectedGet`](/api-reference/classes/projectedget)
+- [`ProjectedGetConfig`](/api-reference/type-aliases/projectedgetconfig)
+- [`ProjectedGetResult`](/api-reference/type-aliases/projectedgetresult)

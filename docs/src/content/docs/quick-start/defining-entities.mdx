@@ -1,0 +1,127 @@
+---
+title: Defining Entities
+description: How to get started defining Entities with Document Builder.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+An **Entity** is simply a *schema* that belongs to a **Table**. With Document Builder, the goal wasn't to create yet another data validation library when so many developers already know and use [Zod](https://zod.dev/).
+
+Here's how you define an **Entity**:
+
+```ts
+import { DynamoEntity } from 'dynamo-document-builder';
+import { z } from 'zod';
+
+const todoEntity = new DynamoEntity({
+  table: exampleTable,
+  schema: z.object({
+    PK: z.string(),
+    SK: z.string(),
+    title: z.string(),
+    isComplete: z.boolean().default(false),
+  }),
+})
+```
+
+## Primary Keys
+
+While this works, often times when working with [Single Table](https://www.alexdebrie.com/posts/dynamodb-single-table) design, the primary keys `PK` and `SK` will actually be a **composite** key derived from what should be other data.
+
+In the above example, we might use `USER#123#TODO#456` as the `PK` where the `123` is the ID of the user who owns that To-do, and `456` is the ID of the To-do itself.
+
+Document Builder makes this easier by enabling you to compute your primary keys from your data that's already in the schema:
+
+```ts {6-7,10} ins={12-15}
+import { key } from 'dynamo-document-builder';
+
+const todoEntity = new DynamoEntity({
+  table: exampleTable,
+  schema: z.object({
+    todoId: z.string(),
+    userId: z.string(),
+    title: z.string(),
+    isComplete: z.boolean().default(false),
+    createdAt: z.iso.date(),
+  }),
+  keys: {
+    partitionKey: todo => key('USER', todo.userId, 'TODO', todo.todoId),
+    sortKey: todo => key('CREATED_AT', todo.createdAt),
+  }
+})
+```
+
+<Aside variant="info" title="The key function">
+Document Builder exports a simple [`key()`](/api-reference/functions/key) function for constructing your keys by following the convention of joining the key parts together with a `#`. You don't have to use this key utility so long as the key functions are pure functions that return a valid DynamoDB key value.
+</Aside>
+
+We'll look more into how to [read and write](./reads-and-writes) data in the next section, but for now we now know that we don't have to worry about creating the `PK` and `SK` attributes our table expects, and can always just calculate them from our item.
+
+This means that we as the developer get to work with:
+
+```ts
+const todo = {
+  userId: 123,
+  todoId: 456,
+  title: 'Do the laundry',
+  isComplete: false,
+  createdAt: '2025-12-10T12:30:00Z',
+}
+```
+
+But when inserting data into DynamoDB itself, we would see the following item:
+
+```json
+{
+  "userId": { "N": 123 },
+  "todoId": { "N": 456 },
+  "title": { "S": "Do the laundry" },
+  "isComplete": { "BOOL": false },
+  "createdAt": { "S": "2025-12-10T12:30:00Z" },
+  "PK": { "S": "USER#123#TODO#456" },
+  "SK": { "S": "CREATED_AT#2025-12-10T12:30:00Z" }
+}
+```
+
+<Aside variant="info" title="Keys as an opt-in feature">
+Letting Document Builder handle the construction of your primary keys is an opt-in feature. Leaving out the `keys` property of a `DynamoEntity` is completely valid, just make sure your schema includes the expected `PK` and `SK` of your table.
+</Aside>
+
+## Types
+
+When working in TypeScript, it can quickly get cumbersome having to define both a type for our entity and also a matching schema. Luckily because we're using [Zod](https://zod.dev), we can infer the schema type. Document Builder exports a type utility to directly get the item type from an entity:
+
+```ts ins={18}
+import { type Entity } from 'dynamo-document-builder';
+
+const todoEntity = new DynamoEntity({
+  table: exampleTable,
+  schema: z.object({
+    todoId: z.string(),
+    userId: z.string(),
+    title: z.string(),
+    isComplete: z.boolean().default(false),
+    createdAt: z.iso.date(),
+  }),
+  keys: {
+    partitionKey: todo => key('USER', todo.userId, 'TODO', todo.todoId),
+    sortKey: todo => key('CREATED_AT', todo.createdAt),
+  }
+})
+
+type TodoEntity = Entity<typeof todoEntity>;
+```
+
+Hovering over this type in our editor, we can see that `TodoEntity` has the following type:
+
+```ts
+interface TodoEntity {
+  todoId: string,
+  userId: string,
+  title: string,
+  isComplete: boolean,
+  createdAt: string
+}
+```
+
+Great! We have the shape of our data, now let's start reading and writing some actual items.

@@ -1,0 +1,111 @@
+---
+title: Reads and Writes
+description: How to read and write data to DynamoDB using Document Builder.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+In order to be able to support [Tree Shaking](https://developer.mozilla.org/en-US/docs/Glossary/Tree_shaking), Document Builder follows the same `Command`-based operation that the AWS SDK (version 3) itself uses.
+
+We can see what this looks like by seeing an example of what it would look like to do `PutItem` operation to write some data to DynamoDB.
+
+## Writing Data
+
+```ts
+import { Put } from 'dynamo-document-builder';
+
+await todoEntity.send(new Put({
+  item: {
+    todoId: '456',
+    userId: '123',
+    title: 'Do the laundry',
+    isComplete: false,
+    createdAt: '2025-12-10T12:30:00Z',
+  },
+}));
+```
+
+As we can see, **Entities** have the same `send()` method that AWS SDK clients have, making the API very similar and easy to pick up.
+
+
+## Reading Data
+
+To read data, we can use Document Builder's `Get` command which will build a dynamo `GetItem` operation for us:
+
+```ts
+import { Get } from 'dynamo-document-builder';
+
+const { item } = await todoEntity.send(new Get({
+  key: {
+    todoId: '456',
+    userId: '123',
+    createdAt: '2025-12-10T12:30:00Z',
+  },
+}));
+```
+
+Notice how when reading data, we only need to provide the primary key attributes that uniquely identify the item we want to read. Document Builder will compute the actual `PK` and `SK` values for us based on the key functions we defined when creating the entity.
+
+## Update Existing Data
+
+To update an existing item, we can use the `Update` command:
+
+```ts
+import { Update } from 'dynamo-document-builder';
+
+await todoEntity.send(new Update({
+  key: {
+    todoId: '456',
+    userId: '123',
+    createdAt: '2025-12-10T12:30:00Z',
+  },
+  updates: {
+    isComplete: true,
+  },
+}));
+```
+
+Document Builder aims to build a simple but powerful abstraction over DynamoDB's read and write operations to not only make things more type-safe, but also easier to work with.
+
+You as the developer can define things like updates, conditions, or projections using a more fluid and type-safe API while Document Builder will handle the construction of the corresponding `UpdateExpression` or `ConditionExpression` for you.
+
+## Deletions
+
+To delete an item, we can use the `Delete` command:
+
+```ts
+import { Delete } from 'dynamo-document-builder';
+
+await todoEntity.send(new Delete({
+  key: {
+    todoId: '456',
+    userId: '123',
+    createdAt: '2025-12-10T12:30:00Z',
+  },
+}));
+```
+
+However we might want to instead only delete the item if its been marked as completed. We can do this by using a `ConditionalDelete`:
+
+```ts
+import { ConditionalDelete } from 'dynamo-document-builder';
+
+await todoEntity.send(new ConditionalDelete({
+  key: {
+    todoId: '456',
+    userId: '123',
+    createdAt: '2025-12-10T12:30:00Z',
+  },
+  condition: {
+    isComplete: true,
+  },
+}));
+```
+
+<Aside variant="info" title="Why separate commands?">
+Some commands will have differing variants to support additional features like conditional writes or projections. Document Builder separates these into different command classes to ensure maximum tree-shakability so that you only import what you actually use.
+</Aside>
+
+<Aside type='tip' title='Defining Conditions'>
+Document Builder provides a expressive API for defining conditions over DynamoDB's base `ConditionExpression`, see [Conditions](/guides/advanced/conditions) for more details.
+</Aside>

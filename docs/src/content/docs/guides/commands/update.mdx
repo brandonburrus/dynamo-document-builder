@@ -1,0 +1,350 @@
+---
+title: Update
+description: A guide on Update operations using Dynamo Document Builder.
+---
+
+import ConfigTable from '../../../../components/ConfigTable.astro';
+import ResultTable from '../../../../components/ResultTable.astro';
+import PropTableEntry from '../../../../components/PropTableEntry.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+Use the `Update` command to modify a single item in DynamoDB. This is the Document Builder command for a [`UpdateItem`](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_UpdateItem.html) operation.
+
+## Basic Usage
+
+Update an item by primary key.
+
+```ts
+const todoListEntity = new DynamoEntity({
+  table: parentTable,
+  schema: z.object({
+    todoListId: z.string(),
+    userId: z.string(),
+    title: z.string(),
+    todos: z.array(z.string()),
+  }),
+  partitionKey: todo => key('USER', todo.userId),
+  sortKey: todo => key('TODO_LIST', todo.todoListId),
+});
+
+const updateCommand = new Update({
+  key: {
+    userId: '123',
+    todoListId: '456',
+  },
+  updates: {
+    title: 'Todays To-dos',
+    todos: append([
+      'Do the dishes',
+      'Walk the dog',
+    ]),
+  },
+});
+
+await todoListEntity.send(updateCommand);
+```
+
+In the example above, we update the `title` attribute to a new value and append two new items to the `todos` list attribute.
+
+<Aside type='note'>
+Currently, items in DynamoDB can only be updated by primary key *only*, not by secondary indexes. If you need to update an item using a secondary index, you must first perform a `Query` or `Scan` operation to retrieve the primary key of the item, and then use that primary key to perform the `Update` operation.
+</Aside>
+
+## Update Operations
+
+Document Builder provides a simple and expressive API for building the underlying DynamoDB `UpdateExpression`. Not only does it handle the construction of the underlying update expression itself, but also the accompanying `ExpressionAttributeNames` and `ExpressionAttributeValues` as well.
+
+<Aside type='caution' title='Schema Validation for Updates'>
+Document Builder doesn't do any validation of the actual update itself against the entity schema. The only thing that is validated for an `Update` is the returned updated item (if requested).
+</Aside>
+
+### Update a single attribute
+
+Updating a single attribute to a new value is as simple as providing the attribute name and the new value in the `update` object.
+
+```ts
+new Update({
+  key: {
+    PK: '123',
+    SK: '456',
+  },
+  update: {
+    myAttribute: 'new value',
+  },
+});
+```
+
+This would build the following `UpdateItem` operation:
+```ts title="UpdateItem"
+{
+  Key: {
+    PK: '123',
+    SK: '456',
+  },
+  UpdateExpression: 'SET #myAttribute = :myAttribute',
+  ExpressionAttributeNames: {
+    '#myAttribute': 'myAttribute',
+  },
+  ExpressionAttributeValues: {
+    ':myAttribute': 'new value',
+  }
+}
+```
+
+### Update multiple attributes
+
+Update multiple attributes by providing multiple key-value pairs in the `update` object.
+
+```ts
+new Update({
+  key: {
+    PK: '123',
+    SK: '456',
+  },
+  update: {
+    attributeOne: 'new value one',
+    attributeTwo: 42,
+    attributeThree: false,
+  },
+});
+```
+
+### Update nested attributes
+
+To update nested attributes, use dot notation to specify the path to the nested attribute.
+
+```ts
+new Update({
+  key: {
+    PK: '123',
+    SK: '456',
+  },
+  update: {
+    'nested.attribute.one': 'new nested value',
+    'nested.attribute.two': 100,
+  },
+});
+```
+
+<Aside type='note'>
+The reason why nesting objects directly in the `update` object is not supported is to remove ambiguity around whether the intention is to replace the entire nested object or just update specific attributes within it. This also enables updates at an array index (example: `nested.array[0]`), keeping the API consistent with DynamoDB's update expressions.
+</Aside>
+
+### Reference another attribute
+
+If you want to set one attribute's value to the value of another attribute, you can use the `ref()` function and pass it the attribute path.
+
+```ts
+new Update({
+  key: {
+    PK: '123',
+    SK: '456',
+  },
+  update: {
+    someAttribute: ref('anotherAttribute'),
+  },
+});
+```
+
+### Reference another attribute with a default value
+
+You can provide a default value to use in case the referenced attribute does not exist by passing a second argument to the `ref()` function.
+
+```ts
+new Update({
+  key: {
+    PK: '123',
+    SK: '456',
+  },
+  update: {
+    someAttribute: ref('anotherAttribute', 42),
+  },
+});
+```
+
+### Reference another nested attribute
+
+`ref()` also supports dot notation for referencing nested attributes.
+
+```ts
+new Update({
+  key: {
+    PK: '123',
+    SK: '456',
+  },
+  update: {
+    someAttribute: ref('nested.attribute.path'),
+  },
+});
+```
+
+### Remove an attribute
+
+If you want to remove an attribute from an item entirely, you can use the `remove()` function.
+
+```ts
+new Update({
+  key: {
+    PK: '123',
+    SK: '456',
+  },
+  update: {
+    obsoleteAttribute: remove(),
+  },
+});
+```
+
+### Increment or decrement a numeric attribute
+
+For numeric attributes, you can use the `add()` and `subtract()` functions to increment or decrement their values.
+
+```ts
+new Update({
+  key: {
+    PK: '123',
+    SK: '456',
+  },
+  update: {
+    counterAttribute: add(5),
+    anotherCounter: subtract(3),
+  },
+});
+```
+
+### Append or prepend to a List
+
+If you have a List attribute, you can use the `append()` and `prepend()` functions to add items to the end or beginning of the list.
+
+```ts
+new Update({
+  key: {
+    PK: '123',
+    SK: '456',
+  },
+  update: {
+    myList: append(['new item at end']),
+    anotherList: prepend(['new item at start']),
+  },
+});
+```
+
+### Add a value to a Set
+
+For Set attributes specifically, you can use the `addToSet()` function to add one or more values to the set.
+
+```ts
+new Update({
+  key: {
+    PK: '123',
+    SK: '456',
+  },
+  update: {
+    tags: addToSet(['newTag1', 'newTag2']),
+  },
+});
+```
+
+### Delete a value from a Set
+
+To remove one or more values from a Set attribute, you can use the `delete()` function.
+
+```ts
+new Update({
+  key: {
+    PK: '123',
+    SK: '456',
+  },
+  update: {
+    tags: delete(['tagToRemove1', 'tagToRemove2']),
+  },
+});
+```
+
+## Returning the Updated Item
+
+You can request that the update operation return the item's attributes as they appear after the update operation. To do this, set the `returnValues` parameter in the command config.
+
+```ts
+const updateCommand = new Update({
+  key: {
+    userId: '123',
+    todoListId: '456',
+  },
+  updates: {
+    todos: append(['Walk the dog']),
+  },
+  returnValues: 'ALL_OLD',
+});
+
+const updateResult = await todoListEntity.send(updateCommand);
+console.log(updateResult.updatedItem);
+```
+
+<Aside type='note' title='Updated Item Type'>
+The `updated` type is always a `Partial<T>` of your schema type, since the update item may not exist or might only contain a subset of attributes.
+</Aside>
+
+## Conditional Updates
+
+You can perform an update that only succeeds if certain conditions are met. To do this, use the `ConditionalUpdate` command and provide a `condition` in the command config.
+
+```ts
+const conditionalUpdate = new ConditionalUpdate({
+  key: {
+    userId: '123',
+    todoListId: '456',
+  },
+  updates: {
+    title: 'Updated To-dos',
+  },
+  condition: {
+    title: 'Todays To-dos',
+  },
+});
+
+await todoListEntity.send(conditionalUpdate);
+```
+
+In the above example, the update will only succeed if the existing `title` attribute is set to `'Todays To-dos'`.
+
+<Aside type='tip' title='Defining Conditions'>
+Document Builder provides a expressive API for defining conditions over DynamoDB's base `ConditionExpression`, see [Conditions](/guides/advanced/conditions) for more details.
+</Aside>
+
+## Tree-shakable Imports
+
+```ts
+import { Update } from 'dynamo-document-builder/commands/update';
+import { ConditionalUpdate } from 'dynamo-document-builder/commands/conditional-update';
+```
+
+```ts
+import { addToSet } from 'dynamo-document-builder/updates/add-to-set';
+import { add } from 'dynamo-document-builder/updates/add';
+import { append } from 'dynamo-document-builder/updates/append';
+import { delete } from 'dynamo-document-builder/updates/delete';
+import { prepend } from 'dynamo-document-builder/updates/prepend';
+import { ref } from 'dynamo-document-builder/updates/ref';
+import { remove } from 'dynamo-document-builder/updates/remove';
+import { subtract } from 'dynamo-document-builder/updates/subtract';
+```
+
+## API Reference
+
+Commands
+- [`Update`](/api-reference/classes/update)
+- [`UpdateConfig`](/api-reference/type-aliases/updateconfig)
+- [`UpdateResult`](/api-reference/type-aliases/updateresult)
+- [`ConditionalUpdate`](/api-reference/classes/conditionalupdate)
+- [`ConditionalUpdateConfig`](/api-reference/type-aliases/conditionalupdateconfig)
+- [`ConditionalUpdateResult`](/api-reference/type-aliases/conditionalupdateresult)
+
+Update Operations
+- [`ref()`](/api-reference/functions/ref)
+- [`remove()`](/api-reference/functions/remove)
+- [`add()`](/api-reference/functions/add)
+- [`subtract()`](/api-reference/functions/subtract)
+- [`append()`](/api-reference/functions/append)
+- [`prepend()`](/api-reference/functions/prepend)
+- [`addToSet()`](/api-reference/functions/addtoset)
+- [`delete()`](/api-reference/functions/delete)
