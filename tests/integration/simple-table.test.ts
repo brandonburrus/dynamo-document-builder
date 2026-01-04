@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { id, documentClient, ttl } from './test-utils'
 import { simpleTable } from './test-tables'
-import { DynamoEntity, Get, key, Put, Update, Delete, Scan } from '@/index'
-import { PutCommand, DeleteCommand, GetCommand, BatchWriteCommand } from '@aws-sdk/lib-dynamodb'
+import { DynamoEntity, Get, key, Put, Update, Delete } from '@/index'
+import { PutCommand, DeleteCommand, GetCommand } from '@aws-sdk/lib-dynamodb'
 import { z } from 'zod'
 
 describe('simple table', () => {

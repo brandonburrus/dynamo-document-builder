@@ -1,12 +1,8 @@
 import typescript from '@rollup/plugin-typescript'
 import resolve from '@rollup/plugin-node-resolve'
 import commonjs from '@rollup/plugin-commonjs'
-import dts from 'rollup-plugin-dts'
-import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { globSync } from 'glob'
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const external = ['@aws-sdk/client-dynamodb', '@aws-sdk/lib-dynamodb', 'zod', 'p-map']
 
