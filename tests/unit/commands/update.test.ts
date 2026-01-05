@@ -848,4 +848,97 @@ describe('Conditional Update Command', () => {
 
     expect(result).toBeDefined()
   })
+
+  it('should throw an error if the condition is not met', async () => {})
+
+  it('should skip validation when specified', async () => {
+    const updateCommand = new ConditionalUpdate({
+      key: {
+        id: '999',
+        value: 2600,
+      },
+      update: {
+        value: 'invalid-number',
+      },
+      condition: {
+        value: 2600,
+      },
+      skipValidation: true,
+    })
+
+    dynamoMock.on(UpdateCommand).resolves({})
+
+    const result = await entity.send(updateCommand)
+
+    expect(dynamoMock.calls()[0].args[0].input).toEqual(
+      expect.objectContaining({
+        TableName: 'TestTable',
+        Key: {
+          PK: 'ITEM#999',
+          SK: 'VALUE#2600',
+        },
+        UpdateExpression: 'SET #value = :v1',
+        ConditionExpression: '#value = :v2',
+        ExpressionAttributeNames: {
+          '#value': 'value',
+        },
+        ExpressionAttributeValues: {
+          ':v1': 'invalid-number',
+          ':v2': 2600,
+        },
+      }),
+    )
+
+    expect(result).toBeDefined()
+  })
+
+  it('should return the updated item when condition is met', async () => {
+    const updateCommand = new ConditionalUpdate({
+      key: {
+        id: '112',
+        value: 2700,
+      },
+      update: {
+        value: 2800,
+      },
+      condition: {
+        value: 2700,
+      },
+      returnValues: 'ALL_NEW',
+    })
+
+    dynamoMock.on(UpdateCommand).resolves({
+      Attributes: {
+        id: '112',
+        value: 2800,
+      },
+    })
+
+    const result = await entity.send(updateCommand)
+
+    expect(dynamoMock.calls()[0].args[0].input).toEqual(
+      expect.objectContaining({
+        TableName: 'TestTable',
+        Key: {
+          PK: 'ITEM#112',
+          SK: 'VALUE#2700',
+        },
+        UpdateExpression: 'SET #value = :v1',
+        ConditionExpression: '#value = :v2',
+        ExpressionAttributeNames: {
+          '#value': 'value',
+        },
+        ExpressionAttributeValues: {
+          ':v1': 2800,
+          ':v2': 2700,
+        },
+        ReturnValues: 'ALL_NEW',
+      }),
+    )
+
+    expect(result.updatedItem).toEqual({
+      id: '112',
+      value: 2800,
+    })
+  })
 })

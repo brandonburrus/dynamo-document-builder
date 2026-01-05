@@ -247,4 +247,96 @@ describe('Conditional Delete Command', () => {
 
     expect(result).toBeDefined()
   })
+
+  it('should return the deleted item on conditional delete', async () => {
+    const conditionalDeleteCommand = new ConditionalDelete({
+      key: {
+        id: '111',
+        value: 400,
+      },
+      condition: {
+        attribute: 'value',
+      },
+      returnValues: 'ALL_OLD',
+    })
+
+    dynamoMock.on(DeleteCommand).resolves({
+      Attributes: {
+        id: '111',
+        value: 400,
+      },
+    })
+
+    const result = await entity.send(conditionalDeleteCommand)
+
+    expect(result.deletedItem).toEqual({
+      id: '111',
+      value: 400,
+    })
+  })
+
+  it('should throw validation error for invalid deleted item on conditional delete', async () => {
+    const conditionalDeleteCommand = new ConditionalDelete({
+      key: {
+        id: '222',
+        value: 500,
+      },
+      condition: {
+        attribute: 'value',
+      },
+      returnValues: 'ALL_OLD',
+    })
+
+    dynamoMock.on(DeleteCommand).resolves({
+      Attributes: {
+        id: '222',
+        value: 'invalid-number',
+      },
+    })
+
+    let threwError = false
+    try {
+      await entity.send(conditionalDeleteCommand)
+    } catch (error) {
+      threwError = true
+      expect(error).toBeInstanceOf(ZodError)
+      expect((error as ZodError).issues).toEqual([
+        {
+          code: 'invalid_type',
+          expected: 'number',
+          message: 'Invalid input: expected number, received string',
+          path: ['value'],
+        },
+      ])
+    }
+    expect(threwError).toBe(true)
+  })
+
+  it('should skip validation for deleted item if configured on conditional delete', async () => {
+    const conditionalDeleteCommand = new ConditionalDelete({
+      key: {
+        id: '222',
+        value: 500,
+      },
+      condition: {
+        attribute: 'value',
+      },
+      returnValues: 'ALL_OLD',
+      skipValidation: true,
+    })
+
+    dynamoMock.on(DeleteCommand).resolves({
+      Attributes: {
+        id: '222',
+        value: 'invalid-number',
+      },
+    })
+
+    const result = await entity.send(conditionalDeleteCommand)
+
+    expect(result.deletedItem).toEqual({
+      id: '222',
+      value: 'invalid-number',
+    })
+  })
 })

@@ -10,6 +10,12 @@ export default defineConfig({
     include: ['tests/unit/**/*.test.ts'],
     exclude: ['node_modules/**', 'dist/**'],
     coverage: {
+      thresholds: {
+        statements: 85,
+        branches: 80,
+        functions: 85,
+        lines: 85,
+      },
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
       include: [

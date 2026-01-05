@@ -101,7 +101,7 @@
   ],
   "author": "Brandon Burrus <brandon@burrus.io>",
   "license": "MIT",
-  "type": "commonjs",
+  "type": "module",
   "homepage": "https://dynamodocumentbuilder.com",
   "repository": {
     "type": "git",
@@ -111,9 +111,10 @@
     "url": "https://github.com/brandonburrus/dynamo-document-builder/issues"
   },
   "scripts": {
-    "build": "rimraf dist && rollup -c rollup.config.mts",
+    "build": "rimraf dist && rollup -c rollup.config.ts",
     "format": "biome format --write",
     "lint": "biome check --fix",
+    "lint:check": "biome check",
     "docs": "cd docs && npm run dev",
     "prepare": "husky",
     "prepublishOnly": "npm run build && npm run lint && npm run test",

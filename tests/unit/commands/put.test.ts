@@ -350,4 +350,118 @@ describe('Conditional Put Command', () => {
 
     expect(result).toBeDefined()
   })
+
+  it('should return the item on conditional put', async () => {
+    const putCommand = new ConditionalPut({
+      item: {
+        id: '556',
+        value: 89,
+      },
+      condition: {
+        value: 200,
+      },
+      returnValues: 'ALL_NEW',
+    })
+
+    dynamoMock.on(PutCommand).resolves({
+      Attributes: {
+        id: '556',
+        value: 89,
+      },
+    })
+
+    const result = await entity.send(putCommand)
+
+    expect(dynamoMock.calls()[0].args[0].input).toEqual(
+      expect.objectContaining({
+        TableName: 'TestTable',
+        Item: {
+          PK: 'ITEM#556',
+          SK: 'VALUE#89',
+          id: '556',
+          value: 89,
+        },
+        ConditionExpression: '#value = :v1',
+        ExpressionAttributeNames: {
+          '#value': 'value',
+        },
+        ExpressionAttributeValues: {
+          ':v1': 200,
+        },
+        ReturnValues: 'ALL_NEW',
+      }),
+    )
+
+    expect(result.returnItem).toEqual({
+      id: '556',
+      value: 89,
+    })
+  })
+
+  it('should throw validation error for invalid item in conditional put', async () => {
+    const putCommand = new ConditionalPut({
+      item: {
+        id: '557',
+        value: 'not-a-number', // Invalid type
+        // biome-ignore lint/suspicious/noExplicitAny: for testing purposes
+      } as any,
+      condition: {
+        value: 300,
+      },
+    })
+
+    let threwError = false
+    try {
+      await entity.send(putCommand)
+    } catch (error) {
+      threwError = true
+      expect(error).toBeInstanceOf(ZodError)
+      expect((error as ZodError).issues).toEqual([
+        {
+          code: 'invalid_type',
+          expected: 'number',
+          message: 'Invalid input: expected number, received string',
+          path: ['value'],
+        },
+      ])
+    }
+    expect(threwError).toBe(true)
+  })
+
+  it('should skip validation if configured in conditional put', async () => {
+    const putCommand = new ConditionalPut({
+      item: {
+        id: '558',
+        value: 'not-a-number', // Invalid type, but we will skip validation
+      },
+      condition: {
+        value: 400,
+      },
+      skipValidation: true,
+    })
+
+    dynamoMock.on(PutCommand).resolves({})
+    const result = await entity.send(putCommand)
+
+    expect(dynamoMock.calls()[0].args[0].input).toEqual(
+      expect.objectContaining({
+        TableName: 'TestTable',
+        Item: {
+          PK: 'ITEM#558',
+          SK: 'VALUE#not-a-number',
+          id: '558',
+          value: 'not-a-number',
+        },
+        ConditionExpression: '#value = :v1',
+        ExpressionAttributeNames: {
+          '#value': 'value',
+        },
+        ExpressionAttributeValues: {
+          ':v1': 400,
+        },
+      }),
+    )
+
+    expect(result).toBeDefined()
+  })
 })
