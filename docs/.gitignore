@@ -21,3 +21,6 @@ pnpm-debug.log*
 .DS_Store
 
 src/content/docs/api-reference
+
+# Local Netlify folder
+.netlify
