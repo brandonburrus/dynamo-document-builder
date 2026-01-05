@@ -7,6 +7,8 @@ import mermaid from 'astro-mermaid'
 import netlify from '@astrojs/netlify'
 
 export default defineConfig({
+  site: 'https://dynamodocumentbuilder.com',
+
   integrations: [
     starlight({
       title: 'Dynamo Document Builder',
@@ -59,13 +61,12 @@ export default defineConfig({
         {
           tag: 'script',
           attrs: {
-            src: `www.googletagmanager.com`,
             async: true,
+            src: `https://www.googletagmanager.com/gtag/js?id=G-W8PKCYTLE0`,
           },
         },
         {
           tag: 'script',
-          attrs: {},
           content: `
             window.dataLayer = window.dataLayer || [];
             function gtag(){dataLayer.push(arguments);}
