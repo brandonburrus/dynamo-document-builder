@@ -1,6 +1,6 @@
 {
   "name": "dynamo-document-builder",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "DynamoDB single table design and data validation made easy using TypeScript and Zod ⚡️",
   "main": "dist/index.cjs",
   "module": "dist/index.mjs",
