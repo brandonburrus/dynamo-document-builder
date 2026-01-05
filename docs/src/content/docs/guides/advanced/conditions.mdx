@@ -204,7 +204,7 @@ Use the `isIn` condition to check if an attribute's value is within a set of spe
 
 ```ts
 {
-  orderStatus: isIn(['pending', 'processing', 'shipped']),
+  orderStatus: isIn('pending', 'processing', 'shipped'),
 }
 ```
 
@@ -233,8 +233,8 @@ Use the `size` condition to check the size of an attribute's value. Depending on
 
 ```ts
 {
-  username: size(greaterThan(5)),
-  tags: size(lessThanOrEqual(10)),
+  username: size(5),
+  tags: size(greaterThan(2)),
 }
 ```
 

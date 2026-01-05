@@ -15,9 +15,6 @@ Use the `Query` command to retrieve multiple items from DynamoDB based on an ite
 Query items by their partition key. This retrieves all items with a matching partition key value.
 
 ```ts
-import { Query } from 'dynamo-document-builder/commands/query';
-import { key } from 'dynamo-document-builder';
-
 const todoEntity = new DynamoEntity({
   table: parentTable,
   schema: z.object({
@@ -154,9 +151,6 @@ const result = await todoEntity.send(queryCommand);
 Use `ProjectedQuery` to retrieve only specific attributes from items.
 
 ```ts
-import { ProjectedQuery } from 'dynamo-document-builder/commands/projected-query';
-
-// Define a schema for the projected attributes
 const projectionSchema = z.object({
   title: z.string(),
   completed: z.boolean(),
