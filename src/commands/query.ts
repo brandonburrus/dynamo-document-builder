@@ -49,6 +49,10 @@ export class Query<Schema extends ZodObject>
   public buildCommandInput(entity: DynamoEntity<Schema>): QueryCommandInput {
     const attributeExpressionMap = new AttributeExpressionMap()
 
+    if (!('key' in this.#config) && !('index' in this.#config)) {
+      throw new DocumentBuilderError("Either 'key' or 'index' must be specified for a query.")
+    }
+
     // Generate the PK or GSIPK key
     const keyItem = entity.buildPrimaryOrIndexKey(this.#config)
     let queryKeyName: string
@@ -57,13 +61,11 @@ export class Query<Schema extends ZodObject>
       queryKeyName = entity.table.partitionKeyName
     } else if ('index' in this.#config) {
       const indexes = Object.keys(this.#config.index)
-      if (!indexes) {
+      if (indexes.length === 0) {
         throw new DocumentBuilderError('No index specified in query configuration.')
       }
       indexName = Object.keys(this.#config.index)[0]!
       queryKeyName = entity.table.globalSecondaryIndexKeyNames[indexName]!.partitionKey
-    } else {
-      throw new DocumentBuilderError("Either 'key' or 'index' must be specified for a query.")
     }
     const queryKeyValue: NativeAttributeValue = keyItem[queryKeyName!]
 

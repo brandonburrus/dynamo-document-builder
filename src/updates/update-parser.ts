@@ -83,8 +83,9 @@ export function parseUpdate(
           const refExpr = parseAttributePath(attributeExpressionMap, value.values.to)
           deleteExpressions.push(`${pathExpr} ${refExpr}`)
         } else {
-          attributeExpressionMap.addValue(value.values)
-          const valuePlaceholder = attributeExpressionMap.getPlaceholderFromValue(value.values)!
+          const setValues = Array.isArray(value.values) ? new Set(value.values) : value.values
+          attributeExpressionMap.addValue(setValues)
+          const valuePlaceholder = attributeExpressionMap.getPlaceholderFromValue(setValues)!
           deleteExpressions.push(`${pathExpr} ${valuePlaceholder}`)
         }
       } else if (value.type === $add) {
@@ -93,8 +94,9 @@ export function parseUpdate(
             const refExpr = parseAttributePath(attributeExpressionMap, value.values.to)
             addExpressions.push(`${pathExpr} ${refExpr}`)
           } else {
-            attributeExpressionMap.addValue(value.values)
-            const valuePlaceholder = attributeExpressionMap.getPlaceholderFromValue(value.values)!
+            const setValues = Array.isArray(value.values) ? new Set(value.values) : value.values
+            attributeExpressionMap.addValue(setValues)
+            const valuePlaceholder = attributeExpressionMap.getPlaceholderFromValue(setValues)!
             addExpressions.push(`${pathExpr} ${valuePlaceholder}`)
           }
         }

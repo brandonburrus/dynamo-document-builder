@@ -244,9 +244,9 @@ new Update({
 });
 ```
 
-### Delete a value from a Set
+### Remove a value from a Set
 
-To remove one or more values from a Set attribute, you can use the `delete()` function.
+To remove one or more values from a Set attribute, you can use the `removeFromSet()` function.
 
 ```ts
 new Update({
@@ -255,7 +255,7 @@ new Update({
     SK: '456',
   },
   update: {
-    tags: delete(['tagToRemove1', 'tagToRemove2']),
+    tags: removeFromSet(['tagToRemove1', 'tagToRemove2']),
   },
 });
 ```
@@ -319,14 +319,14 @@ import { ConditionalUpdate } from 'dynamo-document-builder/commands/conditional-
 ```
 
 ```ts
-import { addToSet } from 'dynamo-document-builder/updates/add-to-set';
-import { add } from 'dynamo-document-builder/updates/add';
-import { append } from 'dynamo-document-builder/updates/append';
-import { delete } from 'dynamo-document-builder/updates/delete';
-import { prepend } from 'dynamo-document-builder/updates/prepend';
 import { ref } from 'dynamo-document-builder/updates/ref';
 import { remove } from 'dynamo-document-builder/updates/remove';
+import { add } from 'dynamo-document-builder/updates/add';
 import { subtract } from 'dynamo-document-builder/updates/subtract';
+import { append } from 'dynamo-document-builder/updates/append';
+import { prepend } from 'dynamo-document-builder/updates/prepend';
+import { addToSet } from 'dynamo-document-builder/updates/add-to-set';
+import { removeFromSet } from 'dynamo-document-builder/updates/remove-from-set';
 ```
 
 ## API Reference
@@ -347,4 +347,4 @@ Update Operations
 - [`append()`](/api-reference/functions/append)
 - [`prepend()`](/api-reference/functions/prepend)
 - [`addToSet()`](/api-reference/functions/addtoset)
-- [`delete()`](/api-reference/functions/delete)
+- [`removeFromSet()`](/api-reference/functions/removefromset)
