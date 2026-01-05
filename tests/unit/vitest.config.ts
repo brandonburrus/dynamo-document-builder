@@ -12,6 +12,14 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
+      include: [
+        'src/core/**/*.ts',
+        'src/commands/**/*.ts',
+        'src/conditions/**/*.ts',
+        'src/updates/**/*.ts',
+        'src/projections/**/*.ts',
+        'src/attributes/**/*.ts',
+      ],
       exclude: [
         'node_modules/**',
         'dist/**',
