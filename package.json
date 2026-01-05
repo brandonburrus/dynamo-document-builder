@@ -114,6 +114,7 @@
     "build": "rimraf dist && rollup -c rollup.config.mts",
     "format": "biome format --write",
     "lint": "biome check --fix",
+    "lint:check": "biome check",
     "docs": "cd docs && npm run dev",
     "prepare": "husky",
     "prepublishOnly": "npm run build && npm run lint && npm run test",
