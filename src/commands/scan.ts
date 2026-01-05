@@ -16,20 +16,18 @@ import {
 import { parseCondition } from '@/conditions/condition-parser'
 import pMap from 'p-map'
 
-export type ScanConfig<Schema extends ZodObject> =
-  | (BaseConfig & {
-      indexName?: string
-      filter?: Condition
-      limit?: number
-      selectAttributes?: Select
-      consistent?: boolean
-      validationConcurrency?: number
-      segment?: number
-      totalSegments?: number
-      exclusiveStartKey?: Partial<EntitySchema<Schema>>
-      pageSize?: number
-    })
-  | undefined
+export type ScanConfig<Schema extends ZodObject> = BaseConfig & {
+  indexName?: string
+  filter?: Condition
+  limit?: number
+  selectAttributes?: Select
+  consistent?: boolean
+  validationConcurrency?: number
+  segment?: number
+  totalSegments?: number
+  exclusiveStartKey?: Partial<EntitySchema<Schema>>
+  pageSize?: number
+}
 
 export type ScanResult<Schema extends ZodObject> = BaseResult & {
   items: EntitySchema<Schema>[]

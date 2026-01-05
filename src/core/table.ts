@@ -19,8 +19,8 @@ export class DynamoTable {
   #tableName: string
   #documentClient: DynamoDBDocumentClient
 
-  #pk: string
-  #sk: string | null
+  #pk: string = 'PK'
+  #sk: string | null = 'SK'
 
   #gsi: NamedGlobalSecondaryIndexKeyNames
   #lsi: NamedLocalSecondaryIndexKeyNames
@@ -28,8 +28,12 @@ export class DynamoTable {
   constructor(config: DynamoTableConfig) {
     this.#tableName = config.tableName
     this.#documentClient = config.documentClient
-    this.#pk = config.keyNames?.partitionKey ?? 'PK'
-    this.#sk = config.keyNames?.sortKey ?? 'SK'
+    if (config.keyNames?.partitionKey !== undefined) {
+      this.#pk = config.keyNames.partitionKey
+    }
+    if (config.keyNames?.sortKey !== undefined) {
+      this.#sk = config.keyNames.sortKey
+    }
     this.#gsi = config.keyNames?.globalSecondaryIndexes ?? {}
     this.#lsi = config.keyNames?.localSecondaryIndexes ?? {}
   }
