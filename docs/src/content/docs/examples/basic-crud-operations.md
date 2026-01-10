@@ -113,28 +113,125 @@ async function createNewTodo(
 
 ### Get a To-do by ID
 
-TODO
+```ts
+import { Get } from 'dynamo-document-builder';
+
+async function getTodoById(
+  userId: string,
+  todoId: string
+): Promise<Todo | undefined> {
+  const result = await todoEntity.send(new Get({
+    key: { userId, todoId },
+  }));
+  return result.item;
+}
+```
 
 ### Get all To-dos for a user
 
-TODO
+```ts
+import { Query } from 'dynamo-document-builder';
+
+async function getAllTodosForUser(userId: string): Promise<Todo[]> {
+  const result = await todoEntity.send(new Query({
+    key: { userId },
+  }));
+  return result.items;
+}
+```
 
 ### Get all To-dos for a user by status
 
-TODO
+```ts
+import { Query } from 'dynamo-document-builder';
+
+async function getTodosByStatus(
+  userId: string,
+  isCompleted: boolean
+): Promise<Todo[]> {
+  const result = await todoEntity.send(new Query({
+    key: { userId },
+    filter: { isCompleted },
+  }));
+  return result.items;
+}
+```
 
 ### Get all To-dos for a user in ascending or descending order
 
-TODO
+```ts
+import { Query } from 'dynamo-document-builder';
+
+async function getTodosOrderedByCreatedAt(
+  userId: string,
+  ascending: boolean = true
+): Promise<Todo[]> {
+  const result = await todoEntity.send(new Query({
+    key: { userId },
+    reverseIndexScan: !ascending, // false for ascending, true for descending
+  }));
+  return result.items;
+}
+```
 
 ### Update a To-do's completion status
 
-TODO
+```ts
+import { Update } from 'dynamo-document-builder';
+
+async function updateTodoCompletionStatus(
+  userId: string,
+  todoId: string,
+  isCompleted: boolean
+): Promise<Todo> {
+  const result = await todoEntity.send(new Update({
+    key: { userId, todoId },
+    updates: {
+      isCompleted,
+    },
+    returnValues: 'ALL_NEW',
+  }));
+  return result.item;
+}
+```
 
 ### Update a To-do's title or description
 
-TODO
+```ts
+import { Update } from 'dynamo-document-builder';
+
+async function updateTodoDetails(
+  userId: string,
+  todoId: string,
+  title?: string,
+  description?: string
+): Promise<Todo> {
+  const updates: Record<string, any> = {};
+  if (title !== undefined) updates.title = title;
+  if (description !== undefined) updates.description = description;
+
+  const result = await todoEntity.send(new Update({
+    key: { userId, todoId },
+    updates,
+    returnValues: 'ALL_NEW',
+  }));
+  return result.item;
+}
+```
 
 ### Delete a To-do by ID
 
-TODO
+```ts
+import { Delete } from 'dynamo-document-builder';
+
+async function deleteTodo(
+  userId: string,
+  todoId: string
+): Promise<Todo | undefined> {
+  const result = await todoEntity.send(new Delete({
+    key: { userId, todoId },
+    returnValues: 'ALL_OLD',
+  }));
+  return result.item;
+}
+```
