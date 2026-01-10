@@ -107,13 +107,20 @@ export type ContainsExpression = {
 }
 export type ContainsExpressionTemplate = Omit<ContainsExpression, 'operand'>
 
-// size(<attribute>)
+// size(<attribute>) - for use in value expressions (returns number)
 export type SizeExpression = {
   type: typeof $size
   attribute: Operand
 }
-// NOTE: This one isnt template-able since it always returns a number (just doesnt make sense API-wise)
-// If you find a use-case for this, feel free to open an issue or PR!
+
+// size(<operand>) = <value> | size(<operand>) > <value> | etc.
+export type SizeConditionExpression = {
+  type: typeof $size
+  operand: Operand
+  operator: ComparisonOperator
+  value: NativeAttributeValue
+}
+export type SizeConditionExpressionTemplate = Omit<SizeConditionExpression, 'operand'>
 
 // Functions that return boolean values
 export type BooleanExpression =
@@ -127,7 +134,11 @@ export type FunctionExpression = BooleanExpression | SizeExpression
 
 // All expressions that can be used within a condition template
 export type TemplateExpression = Omit<
-  ComparisonExpression | BetweenExpression | InExpression | BooleanExpression,
+  | ComparisonExpression
+  | BetweenExpression
+  | InExpression
+  | BooleanExpression
+  | SizeConditionExpression,
   'operand'
 >
 
@@ -145,6 +156,7 @@ export type ConditionExpression =
   | InExpression
   | NotExpression
   | BooleanExpression
+  | SizeConditionExpression
 
 export type ConditionExpressionTemplate = ConditionExpression | ConditionTemplate
 

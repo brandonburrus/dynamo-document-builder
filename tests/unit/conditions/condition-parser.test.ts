@@ -261,15 +261,52 @@ describe('Condition Parser', () => {
     })
   })
 
-  it.skip('should parse size() condition', () => {
+  it('should parse size() condition', () => {
     const condition: Condition = {
-      tags: greaterThan(size('size')),
+      tags: size(5),
+      count: size(greaterThan(10)),
     }
     const result = parseCondition(condition)
-    expect(result.conditionExpression).toBe('size(#tags) = :v1')
+    expect(result.conditionExpression).toBe('size(#tags) = :v1 AND size(#count) > :v2')
     expect(result.attributeExpressionMap.toDynamoAttributeExpression()).toEqual({
-      ExpressionAttributeNames: { '#tags': 'tags' },
-      ExpressionAttributeValues: { ':v1': 'size' },
+      ExpressionAttributeNames: {
+        '#tags': 'tags',
+        '#count': 'count',
+      },
+      ExpressionAttributeValues: {
+        ':v1': 5,
+        ':v2': 10,
+      },
+    })
+  })
+
+  it('should parse size() condition with various comparison operators', () => {
+    const condition: Condition = {
+      username: size(5),
+      tags: size(lessThan(3)),
+      items: size(greaterThanOrEqual(1)),
+      description: size(lessThanOrEqual(100)),
+      categories: size(notEquals(0)),
+    }
+    const result = parseCondition(condition)
+    expect(result.conditionExpression).toBe(
+      'size(#username) = :v1 AND size(#tags) < :v2 AND size(#items) >= :v3 AND size(#description) <= :v4 AND size(#categories) <> :v5',
+    )
+    expect(result.attributeExpressionMap.toDynamoAttributeExpression()).toEqual({
+      ExpressionAttributeNames: {
+        '#username': 'username',
+        '#tags': 'tags',
+        '#items': 'items',
+        '#description': 'description',
+        '#categories': 'categories',
+      },
+      ExpressionAttributeValues: {
+        ':v1': 5,
+        ':v2': 3,
+        ':v3': 1,
+        ':v4': 100,
+        ':v5': 0,
+      },
     })
   })
 

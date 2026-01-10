@@ -1,9 +1,23 @@
 import { $size } from '@/conditions/condition-symbols'
-import type { SizeExpression } from '@/conditions/condition-types'
+import type {
+  ComparisonExpressionTemplate,
+  SizeConditionExpressionTemplate,
+} from '@/conditions/condition-types'
 
-export function size(attributeNameOrPath: string): SizeExpression {
+export function size(
+  valueOrComparison: number | ComparisonExpressionTemplate,
+): SizeConditionExpressionTemplate {
+  if (typeof valueOrComparison === 'number') {
+    return {
+      type: $size,
+      operator: '=',
+      value: valueOrComparison,
+    }
+  }
+
   return {
     type: $size,
-    attribute: attributeNameOrPath,
+    operator: valueOrComparison.operator,
+    value: valueOrComparison.value,
   }
 }

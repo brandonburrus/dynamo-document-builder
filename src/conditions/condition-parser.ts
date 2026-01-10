@@ -11,6 +11,7 @@ import type {
   InExpression,
   LogicalExpression,
   NotExpression,
+  SizeConditionExpression,
   SizeExpression,
   TypeCheckExpression,
   ValueExpression,
@@ -153,6 +154,15 @@ function parseContainsExpression(map: AttributeExpressionMap, expr: ContainsExpr
   return `contains(${operand}, ${value})`
 }
 
+function parseSizeConditionExpression(
+  map: AttributeExpressionMap,
+  expr: SizeConditionExpression,
+): string {
+  const operand = parseAttributePath(map, expr.operand)
+  const value = map.addValue(expr.value)
+  return `size(${operand}) ${expr.operator} ${value}`
+}
+
 function parseConditionExpression(map: AttributeExpressionMap, expr: ConditionExpression): string {
   if (!('type' in expr)) {
     throw new DocumentBuilderError('Unknown condition expression')
@@ -177,6 +187,8 @@ function parseConditionExpression(map: AttributeExpressionMap, expr: ConditionEx
       return parseBeginsWithExpression(map, expr as BeginsWithExpression)
     case $contains:
       return parseContainsExpression(map, expr as ContainsExpression)
+    case $size:
+      return parseSizeConditionExpression(map, expr as SizeConditionExpression)
     default:
       throw new DocumentBuilderError('Unknown expression type')
   }
