@@ -126,6 +126,14 @@ export default defineConfig({
           autogenerate: { directory: 'examples' },
         },
         typeDocSidebarGroup,
+        {
+          label: 'LLMs',
+          attrs: {
+            target: '_blank',
+            rel: 'noopener',
+          },
+          link: '/llms.txt',
+        },
       ],
       credits: false,
       plugins: [

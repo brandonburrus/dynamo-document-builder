@@ -1,0 +1,834 @@
+# Dynamo Document Builder
+
+> DynamoDB single table design and data validation made easy using TypeScript and Zod
+
+## Overview
+
+Dynamo Document Builder is a TypeScript library that simplifies working with DynamoDB using Single Table Design patterns. It provides type-safe operations, automatic schema validation with Zod, computed primary keys, and an expressive API for DynamoDB operations.
+
+**Repository**: https://github.com/brandonburrus/dynamo-document-builder
+**Documentation**: https://dynamodocumentbuilder.com
+**Version**: 0.4.0
+**License**: MIT
+
+## Key Features
+
+- **Data Validation**: Schema validation using Zod
+- **Single Table Design**: Built for DynamoDB single table design patterns
+- **Type Safety**: Full TypeScript support with type inference
+- **Tree-shakable**: Modular exports for minimal bundle sizes
+- **Computed Keys**: Automatic primary key generation from entity data
+- **Expressive API**: Simple, powerful API for conditions, updates, and queries
+- **Zod Codecs**: Support for custom serialization/deserialization
+
+## Installation
+
+```bash
+npm i dynamo-document-builder zod @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb
+```
+
+## Core Concepts
+
+### Tables
+
+Tables are the foundation of Document Builder, representing a DynamoDB table following Single Table Design.
+
+```typescript
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
+import { DynamoTable } from 'dynamo-document-builder';
+
+const dynamoDbClient = new DynamoDBClient();
+const docClient = DynamoDBDocumentClient.from(dynamoDbClient);
+
+const exampleTable = new DynamoTable({
+  tableName: 'ExampleTable',
+  documentClient: docClient,
+  keyNames: {
+    partitionKey: 'PK',
+    sortKey: 'SK',
+  },
+});
+```
+
+**Key Configuration**:
+- `tableName`: The DynamoDB table name (required)
+- `documentClient`: AWS DynamoDBDocumentClient instance (required)
+- `keyNames`: Configuration for primary keys and secondary indexes
+  - `partitionKey`: Name of partition key (default: 'PK')
+  - `sortKey`: Name of sort key (default: 'SK', can be null for simple keys)
+  - `globalSecondaryIndexes`: GSI configurations with partition/sort keys
+  - `localSecondaryIndexes`: LSI configurations with sort keys
+
+### Entities
+
+Entities define data models that belong to a table. Each entity has a Zod schema and optional computed key functions.
+
+```typescript
+import { DynamoEntity, key, type Entity } from 'dynamo-document-builder';
+import { z } from 'zod';
+
+const todoEntity = new DynamoEntity({
+  table: exampleTable,
+  schema: z.object({
+    todoId: z.string(),
+    userId: z.string(),
+    title: z.string(),
+    isComplete: z.boolean().default(false),
+    createdAt: z.iso.datetime(),
+  }),
+  partitionKey: todo => key('USER', todo.userId, 'TODO', todo.todoId),
+  sortKey: todo => key('CREATED_AT', todo.createdAt),
+});
+
+// Infer TypeScript type from entity
+type Todo = Entity<typeof todoEntity>;
+```
+
+**Entity Configuration**:
+- `table`: The parent DynamoTable instance (required)
+- `schema`: Zod object schema defining the entity shape (required)
+- `partitionKey`: Function to compute partition key from item (optional)
+- `sortKey`: Function to compute sort key from item (optional)
+- `globalSecondaryIndexes`: Key builders for GSIs (optional)
+- `localSecondaryIndexes`: Key builders for LSIs (optional)
+
+**Key Features**:
+- Computed keys automatically generate PK/SK from entity data
+- The `key()` helper function joins parts with '#' separator
+- Keys are stripped from read results (validated by schema)
+- Types can be inferred using `Entity<T>` utility type
+- `EncodedEntity<T>` type returns pre-codec data types
+
+### Commands
+
+Document Builder uses a command pattern (like AWS SDK v3) for operations. Commands are tree-shakable and executed via `entity.send()`.
+
+## Read Commands
+
+### Get
+
+Retrieve a single item by primary key.
+
+```typescript
+import { Get, ProjectedGet } from 'dynamo-document-builder';
+
+// Basic get
+const { item } = await todoEntity.send(new Get({
+  key: { userId: '123', todoId: '456' },
+  consistent: true, // optional: strongly consistent read
+}));
+
+// Projected get (specific attributes only)
+const { item } = await todoEntity.send(new ProjectedGet({
+  key: { userId: '123', todoId: '456' },
+  projection: ['title', 'isComplete'],
+  projectionSchema: z.object({
+    title: z.string(),
+    isComplete: z.boolean(),
+  }),
+}));
+```
+
+**Options**: `key` (required), `consistent`, `skipValidation`, `returnConsumedCapacity`
+
+### Query
+
+Retrieve multiple items by partition key with optional sort key conditions.
+
+```typescript
+import { Query, ProjectedQuery } from 'dynamo-document-builder';
+import { beginsWith, greaterThan, and } from 'dynamo-document-builder';
+
+// Basic query
+const { items, count, lastEvaluatedKey } = await todoEntity.send(new Query({
+  key: { userId: '123' },
+  sortKeyCondition: { SK: beginsWith('TODO#') },
+  filter: and(
+    { isComplete: false },
+    { createdAt: greaterThan('2024-01-01') }
+  ),
+  limit: 10,
+  consistent: false,
+  reverseIndexScan: false,
+}));
+
+// Query with GSI
+const { items } = await todoEntity.send(new Query({
+  index: {
+    StatusIndex: { status: 'in-progress' }
+  },
+  sortKeyCondition: { GSI1SK: beginsWith('2024') },
+}));
+
+// Pagination
+for await (const page of todoEntity.paginate(new Query({
+  key: { userId: '123' },
+  pageSize: 50,
+}))) {
+  console.log(`Page with ${page.count} items`);
+  processItems(page.items);
+}
+```
+
+**Options**: `key` or `index` (one required), `sortKeyCondition`, `filter`, `limit`, `pageSize`, `consistent`, `reverseIndexScan`, `exclusiveStartKey`, `validationConcurrency`
+
+### Scan
+
+Scan entire table or index (expensive operation).
+
+```typescript
+import { Scan, ProjectedScan } from 'dynamo-document-builder';
+
+const { items, scannedCount } = await todoEntity.send(new Scan({
+  filter: { isComplete: false },
+  limit: 100,
+  indexName: 'StatusIndex', // optional: scan GSI/LSI
+}));
+
+// Parallel scan
+async function parallelScan(totalSegments: number) {
+  const scanPromises = Array.from({ length: totalSegments }, (_, i) =>
+    todoEntity.paginate(new Scan({
+      segment: i,
+      totalSegments: totalSegments,
+    }))
+  );
+  // Process segments in parallel
+}
+```
+
+**Options**: `indexName`, `filter`, `limit`, `segment`, `totalSegments`, `consistent`, `pageSize`, `exclusiveStartKey`
+
+**Warning**: Scans read every item and are expensive. Use Query when possible. Filters don't reduce read costs.
+
+### Batch Get
+
+Retrieve multiple items by primary keys in a single operation.
+
+```typescript
+import { BatchGet } from 'dynamo-document-builder';
+
+const { items, unprocessedKeys } = await todoEntity.send(new BatchGet({
+  keys: [
+    { userId: '123', todoId: '456' },
+    { userId: '789', todoId: '101' },
+  ],
+  consistent: true,
+}));
+
+// Handle unprocessed keys with retry
+if (unprocessedKeys?.length) {
+  // Retry with exponential backoff
+}
+```
+
+**Options**: `keys` (required), `consistent`, `skipValidation`, `returnConsumedCapacity`
+
+### Transact Get
+
+Transactional read of multiple items (all-or-nothing, strongly consistent).
+
+```typescript
+import { TransactGet } from 'dynamo-document-builder';
+
+const { items } = await todoEntity.send(new TransactGet({
+  keys: [
+    { userId: '123', todoId: '456' },
+    { userId: '789', todoId: '101' },
+  ],
+}));
+// items array has same order as keys, undefined if not found
+```
+
+**Options**: `keys` (required), `skipValidation`, `returnConsumedCapacity`
+
+## Write Commands
+
+### Put
+
+Create or replace an item.
+
+```typescript
+import { Put, ConditionalPut } from 'dynamo-document-builder';
+
+// Basic put
+await todoEntity.send(new Put({
+  item: {
+    userId: '123',
+    todoId: '456',
+    title: 'Take out trash',
+    isComplete: false,
+    createdAt: new Date().toISOString(),
+  },
+  returnValues: 'ALL_OLD', // optional: return previous item
+}));
+
+// Conditional put
+await todoEntity.send(new ConditionalPut({
+  item: { /* ... */ },
+  condition: { isComplete: false },
+  returnValuesOnConditionCheckFailure: 'ALL_OLD',
+}));
+```
+
+**Options**: `item` (required), `returnValues`, `returnItemCollectionMetrics`, `skipValidation`, `returnConsumedCapacity`
+
+### Update
+
+Modify existing item attributes.
+
+```typescript
+import { Update, ConditionalUpdate } from 'dynamo-document-builder';
+import { 
+  ref, remove, add, subtract, 
+  append, prepend, addToSet, removeFromSet 
+} from 'dynamo-document-builder';
+
+await todoEntity.send(new Update({
+  key: { userId: '123', todoId: '456' },
+  updates: {
+    // Simple value updates
+    title: 'New title',
+    'nested.attribute': 'value',
+    
+    // Reference another attribute
+    backup: ref('title'),
+    valueWithDefault: ref('optional', 'default'),
+    
+    // Remove attribute
+    obsolete: remove(),
+    
+    // Numeric operations
+    counter: add(5),
+    score: subtract(2),
+    
+    // List operations
+    tags: append(['newTag']),
+    priorities: prepend(['urgent']),
+    
+    // Set operations
+    categories: addToSet(['category1', 'category2']),
+    oldTags: removeFromSet(['deprecated']),
+  },
+  returnValues: 'ALL_NEW',
+}));
+```
+
+**Update Operations**:
+- Direct value assignment: `attribute: value`
+- `ref(path, default?)`: Reference another attribute
+- `remove()`: Remove attribute
+- `add(value)`: Increment number
+- `subtract(value)`: Decrement number
+- `append(items)`: Append to list
+- `prepend(items)`: Prepend to list
+- `addToSet(values)`: Add to set
+- `removeFromSet(values)`: Remove from set
+
+**Options**: `key` (required), `updates` (required), `returnValues`, `skipValidation`, `returnConsumedCapacity`
+
+### Delete
+
+Remove an item.
+
+```typescript
+import { Delete, ConditionalDelete } from 'dynamo-document-builder';
+
+// Basic delete
+await todoEntity.send(new Delete({
+  key: { userId: '123', todoId: '456' },
+  returnValues: 'ALL_OLD', // optional: return deleted item
+}));
+
+// Conditional delete
+await todoEntity.send(new ConditionalDelete({
+  key: { userId: '123', todoId: '456' },
+  condition: { isComplete: true },
+}));
+```
+
+**Options**: `key` (required), `returnValues`, `returnItemCollectionMetrics`, `skipValidation`, `returnConsumedCapacity`
+
+### Batch Write
+
+Put and/or delete multiple items in a single operation.
+
+```typescript
+import { BatchWrite } from 'dynamo-document-builder';
+
+const { unprocessedPuts, unprocessedDeletes } = await todoEntity.send(new BatchWrite({
+  items: [
+    { userId: '123', todoId: '456', title: 'Task 1', isComplete: false },
+    { userId: '789', todoId: '101', title: 'Task 2', isComplete: true },
+  ],
+  deletes: [
+    { userId: '111', todoId: '222' },
+  ],
+}));
+```
+
+**Options**: `items`, `deletes` (at least one required), `returnItemCollectionMetrics`, `skipValidation`, `returnConsumedCapacity`
+
+### Transact Write
+
+Atomic multi-item write transaction (all-or-nothing).
+
+```typescript
+import { TransactWrite, ConditionCheck } from 'dynamo-document-builder';
+import { Put, Update, Delete } from 'dynamo-document-builder';
+
+await todoEntity.send(new TransactWrite({
+  writes: [
+    new Put({ item: { /* ... */ } }),
+    new Update({ key: { /* ... */ }, updates: { /* ... */ } }),
+    new Delete({ key: { /* ... */ } }),
+    new ConditionCheck({
+      key: { userId: '123', todoId: '456' },
+      condition: { isComplete: false },
+    }),
+  ],
+  idempotencyToken: 'unique-token', // optional
+}));
+```
+
+**Supported Commands**: `Put`, `ConditionalPut`, `Update`, `ConditionalUpdate`, `Delete`, `ConditionalDelete`, `ConditionCheck`
+
+**Options**: `writes` (required), `idempotencyToken`, `returnItemCollectionMetrics`, `skipValidation`, `returnConsumedCapacity`
+
+## Conditions API
+
+Document Builder provides an expressive API for building DynamoDB condition expressions. Used in conditional writes, queries, scans, and filters.
+
+### Comparison Operators
+
+```typescript
+import { 
+  equals, notEquals, 
+  greaterThan, greaterThanOrEqual,
+  lessThan, lessThanOrEqual,
+  between, isIn
+} from 'dynamo-document-builder';
+
+// Equality (implicit if value provided directly)
+{ status: 'active' }  // same as equals('active')
+{ status: equals('active') }
+{ status: notEquals('cancelled') }
+
+// Comparison
+{ age: greaterThan(18) }
+{ age: greaterThanOrEqual(21) }
+{ age: lessThan(65) }
+{ age: lessThanOrEqual(100) }
+
+// Range and set membership
+{ price: between(10, 100) }  // inclusive
+{ status: isIn('pending', 'processing', 'shipped') }
+```
+
+### Logical Operators
+
+```typescript
+import { and, or, not } from 'dynamo-document-builder';
+
+// AND (implicit with arrays or multiple conditions)
+and(
+  { total: greaterThan(50) },
+  { total: lessThan(200) }
+)
+// or as array
+[
+  { total: greaterThan(50) },
+  { total: lessThan(200) }
+]
+
+// OR
+or(
+  { status: 'pending' },
+  { status: 'processing' }
+)
+
+// NOT (negates entire condition)
+not({ status: 'cancelled' })
+
+// Complex combinations
+and(
+  { status: 'active' },
+  not({ role: 'admin' })
+)
+```
+
+### String Operators
+
+```typescript
+import { beginsWith, contains } from 'dynamo-document-builder';
+
+{ SK: beginsWith('USER#') }
+{ title: contains('DynamoDB') }
+{ tags: contains('urgent') }  // works on sets/lists too
+```
+
+### Attribute Checks
+
+```typescript
+import { exists, notExists, size, typeIs } from 'dynamo-document-builder';
+
+// Existence
+{ lastLogin: exists() }
+{ middleName: notExists() }
+
+// Size checks
+{ username: size(5) }  // exactly 5 characters
+{ tags: size(greaterThan(2)) }  // more than 2 elements
+
+// Type checks (DynamoDB type descriptors)
+{ age: typeIs('N') }  // Number
+{ isActive: typeIs('BOOL') }  // Boolean
+{ data: typeIs('M') }  // Map
+{ items: typeIs('L') }  // List
+{ tags: typeIs('SS') }  // String Set
+```
+
+**Type Descriptors**: `S` (String), `N` (Number), `B` (Binary), `BOOL` (Boolean), `NULL` (Null), `M` (Map), `L` (List), `SS` (String Set), `NS` (Number Set), `BS` (Binary Set)
+
+## Advanced Features
+
+### Zod Codecs
+
+Document Builder supports Zod 4.1+ codecs for custom serialization/deserialization.
+
+```typescript
+import { z } from 'zod';
+
+// Date codec: store as ISO string, work with Date objects
+const stringToDate = z.codec(
+  z.iso.datetime(),
+  z.date(),
+  {
+    encode: date => date.toISOString(),
+    decode: isoString => new Date(isoString),
+  }
+);
+
+const eventEntity = new DynamoEntity({
+  table: parentTable,
+  schema: z.object({
+    id: z.string(),
+    name: z.string(),
+    eventDate: stringToDate,  // Use Date in code, stored as string
+  }),
+});
+
+await eventEntity.send(new Put({
+  item: {
+    id: '1',
+    name: 'Conference',
+    eventDate: new Date(2025, 1, 1),  // Pass Date object
+  },
+}));
+```
+
+**Warning**: Using `skipValidation` bypasses codec encoding/decoding. Use `EncodedEntity<T>` type for raw data handling.
+
+### Low-Level Parsers
+
+Document Builder exposes parser functions for advanced use cases.
+
+```typescript
+import { parseCondition } from 'dynamo-document-builder/conditions/condition-parser';
+import { parseUpdate } from 'dynamo-document-builder/updates/update-parser';
+import { parseProjection } from 'dynamo-document-builder/projections/projection-parser';
+import { AttributeExpressionMap } from 'dynamo-document-builder/attributes/attribute-map';
+
+// Parse condition to DynamoDB expression
+const { conditionExpression, attributeExpressionMap } = parseCondition({
+  age: greaterThan(21),
+  status: 'active',
+});
+
+// Parse update to DynamoDB expression
+const { updateExpression, attributeExpressionMap } = parseUpdate({
+  value: 42,
+  'nested.attribute': 'newValue',
+  counter: add(1),
+});
+
+// Parse projection to DynamoDB expression
+const { projectionExpression, attributeExpressionMap } = parseProjection([
+  'name', 'age', 'address.city'
+]);
+
+// Reuse AttributeExpressionMap across parsers
+const map = new AttributeExpressionMap();
+const { conditionExpression } = parseCondition(condition, map);
+const { updateExpression } = parseUpdate(updates, map);
+
+// Convert to DynamoDB format
+const {
+  ExpressionAttributeNames,
+  ExpressionAttributeValues
+} = map.toDynamoAttributeExpression();
+```
+
+### Attribute Expression Map
+
+Utility class for managing expression attribute names and values.
+
+```typescript
+import { AttributeExpressionMap } from 'dynamo-document-builder/attributes/attribute-map';
+
+const map = new AttributeExpressionMap();
+
+// Add name and value
+const [nameToken, valueToken] = map.add('status', 'active');
+// Returns: ['#status', ':v1']
+
+// Add name or value separately
+const nameToken = map.addName('age');  // '#age'
+const valueToken = map.addValue(30);   // ':v2'
+
+// Check existence
+map.hasName('status');  // true
+map.hasValue(30);       // true
+
+// Get placeholders
+map.getPlaceholderFromName('status');  // '#status'
+map.getPlaceholderFromValue('active'); // ':v1'
+
+// Reverse lookup
+map.getNameFromPlaceholder('#status');    // 'status'
+map.getValueFromPlaceholder(':v1');       // 'active'
+
+// Get counts
+map.getNameCount();   // number of unique names
+map.getValueCount();  // number of unique values
+
+// Convert to DynamoDB format
+map.toDynamoAttributeNames();      // { '#status': 'status', ... }
+map.toDynamoAttributeValues();     // { ':v1': 'active', ... }
+map.toDynamoAttributeExpression(); // Both combined
+```
+
+## Tree-shaking
+
+Document Builder is fully tree-shakable. Import only what you need:
+
+```typescript
+// Main exports
+import { DynamoTable, DynamoEntity, key, type Entity } from 'dynamo-document-builder';
+
+// Core (tree-shakable)
+import { DynamoTable } from 'dynamo-document-builder/core/table';
+import { DynamoEntity } from 'dynamo-document-builder/core/entity';
+
+// Commands (tree-shakable)
+import { Get } from 'dynamo-document-builder/commands/get';
+import { Put } from 'dynamo-document-builder/commands/put';
+import { Update } from 'dynamo-document-builder/commands/update';
+import { Delete } from 'dynamo-document-builder/commands/delete';
+import { Query } from 'dynamo-document-builder/commands/query';
+import { Scan } from 'dynamo-document-builder/commands/scan';
+import { BatchGet } from 'dynamo-document-builder/commands/batch-get';
+import { BatchWrite } from 'dynamo-document-builder/commands/batch-write';
+import { TransactGet } from 'dynamo-document-builder/commands/transact-get';
+import { TransactWrite } from 'dynamo-document-builder/commands/transact-write';
+
+// Conditions (tree-shakable)
+import { equals } from 'dynamo-document-builder/conditions/equals';
+import { greaterThan } from 'dynamo-document-builder/conditions/greater-than';
+import { and } from 'dynamo-document-builder/conditions/and';
+// ... etc
+
+// Updates (tree-shakable)
+import { ref } from 'dynamo-document-builder/updates/ref';
+import { add } from 'dynamo-document-builder/updates/add';
+import { append } from 'dynamo-document-builder/updates/append';
+// ... etc
+```
+
+## Best Practices
+
+### Performance
+
+1. **Use Query over Scan**: Queries are efficient, scans read everything
+2. **Limit Consistent Reads**: 2x capacity cost, use only when necessary
+3. **Projection Expressions**: Reduce data transfer by projecting only needed attributes
+4. **Pagination**: Use `pageSize` and `paginate()` for large result sets
+5. **Parallel Scans**: Split large scans into segments for faster processing
+6. **Batch Operations**: Use BatchGet/BatchWrite for multiple items
+7. **Unprocessed Items**: Retry with exponential backoff and jitter
+
+### Design Patterns
+
+1. **Single Table Design**: One table, multiple entities with composite keys
+2. **Computed Keys**: Let Document Builder generate PK/SK from entity data
+3. **Secondary Indexes**: Define GSI/LSI for alternate access patterns
+4. **Zod Schemas**: Centralize validation and type inference
+5. **Type Safety**: Use `Entity<T>` for type inference from schemas
+6. **Codecs**: Handle complex types (Date, Map, Set) with custom codecs
+
+### Error Handling
+
+```typescript
+try {
+  await entity.send(new ConditionalPut({
+    item: myItem,
+    condition: { status: 'draft' },
+  }));
+} catch (error) {
+  if (error.name === 'ConditionalCheckFailedException') {
+    // Condition failed
+  }
+  // Handle other errors
+}
+```
+
+### Lambda Best Practices
+
+- Define tables/entities outside handler (connection reuse)
+- Use consistent naming for PK/SK across entities
+- Leverage tree-shaking to minimize bundle size
+- Use environment variables for table names
+
+## Common Patterns
+
+### User Management
+
+```typescript
+const userEntity = new DynamoEntity({
+  table: myTable,
+  schema: z.object({
+    userId: z.string(),
+    email: z.string().email(),
+    name: z.string(),
+    role: z.enum(['user', 'admin']),
+    createdAt: z.iso.datetime(),
+  }),
+  partitionKey: user => key('USER', user.userId),
+  sortKey: user => key('PROFILE'),
+  globalSecondaryIndexes: {
+    EmailIndex: {
+      partitionKey: user => key('EMAIL', user.email),
+      sortKey: user => key('USER', user.userId),
+    },
+  },
+});
+```
+
+### Hierarchical Data
+
+```typescript
+const commentEntity = new DynamoEntity({
+  table: myTable,
+  schema: z.object({
+    postId: z.string(),
+    commentId: z.string(),
+    userId: z.string(),
+    content: z.string(),
+    createdAt: z.iso.datetime(),
+  }),
+  partitionKey: comment => key('POST', comment.postId),
+  sortKey: comment => key('COMMENT', comment.createdAt, comment.commentId),
+});
+
+// Query all comments for a post
+const { items } = await commentEntity.send(new Query({
+  key: { postId: '123' },
+  sortKeyCondition: { SK: beginsWith('COMMENT#') },
+}));
+```
+
+### Audit Trail
+
+```typescript
+const auditEntity = new DynamoEntity({
+  table: myTable,
+  schema: z.object({
+    entityId: z.string(),
+    action: z.enum(['create', 'update', 'delete']),
+    userId: z.string(),
+    timestamp: z.iso.datetime(),
+    changes: z.record(z.any()),
+  }),
+  partitionKey: audit => key('ENTITY', audit.entityId),
+  sortKey: audit => key('AUDIT', audit.timestamp),
+});
+```
+
+## Troubleshooting
+
+### Common Issues
+
+**Keys not being generated**:
+- Ensure `partitionKey` and `sortKey` functions are defined in entity
+- Functions must be pure and return valid DynamoDB key values
+- Use `key()` helper for consistent formatting
+
+**Validation errors**:
+- Check Zod schema matches your data structure
+- Use `skipValidation: true` for debugging (not recommended in production)
+- Ensure codecs are properly encoding/decoding
+
+**Type errors**:
+- Use `Entity<typeof entity>` for type inference
+- For encoded types, use `EncodedEntity<typeof entity>`
+- Ensure Zod schema types match TypeScript types
+
+**Performance issues**:
+- Avoid full table scans, use Query instead
+- Add GSI/LSI for alternate access patterns
+- Use projection expressions to reduce data transfer
+- Enable pagination for large result sets
+
+## Additional Resources
+
+- **Documentation**: https://dynamodocumentbuilder.com
+- **GitHub**: https://github.com/brandonburrus/dynamo-document-builder
+- **DynamoDB Single Table Design**: https://www.alexdebrie.com/posts/dynamodb-single-table
+- **AWS DynamoDB Documentation**: https://docs.aws.amazon.com/dynamodb/
+- **Zod Documentation**: https://zod.dev
+
+## Quick Reference
+
+### Essential Imports
+
+```typescript
+// Core
+import { DynamoTable, DynamoEntity, key, type Entity } from 'dynamo-document-builder';
+
+// Read Commands
+import { Get, Query, Scan, BatchGet, TransactGet } from 'dynamo-document-builder';
+
+// Write Commands
+import { Put, Update, Delete, BatchWrite, TransactWrite } from 'dynamo-document-builder';
+
+// Conditional Commands
+import { ConditionalPut, ConditionalUpdate, ConditionalDelete } from 'dynamo-document-builder';
+
+// Projection Commands
+import { ProjectedGet, ProjectedQuery, ProjectedScan } from 'dynamo-document-builder';
+
+// Conditions
+import { 
+  equals, notEquals, greaterThan, lessThan, between, isIn,
+  and, or, not, beginsWith, contains, exists, notExists, size, typeIs
+} from 'dynamo-document-builder';
+
+// Updates
+import { 
+  ref, remove, add, subtract, append, prepend, addToSet, removeFromSet 
+} from 'dynamo-document-builder';
+```
+
+### Type Utilities
+
+```typescript
+import { type Entity, type EncodedEntity } from 'dynamo-document-builder';
+
+type User = Entity<typeof userEntity>;
+type EncodedUser = EncodedEntity<typeof userEntity>;
+```
+
+---
+
+This is a comprehensive reference for AI assistants working with Dynamo Document Builder. The library simplifies DynamoDB operations with type safety, validation, and an expressive API while maintaining tree-shakability and following Single Table Design best practices.
