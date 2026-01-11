@@ -8,6 +8,7 @@ export * from './projected-get'
 export * from './projected-query'
 export * from './projected-scan'
 export * from './batch-get'
+export * from './batch-projected-get'
 export * from './transact-get'
 
 // Writes
