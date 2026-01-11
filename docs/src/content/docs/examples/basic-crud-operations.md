@@ -73,10 +73,8 @@ const todoEntity = new DynamoEntity({
     createdAt: isoDatetime().default(() => new Date()),
     isCompleted: z.boolean().default(false),
   }),
-  keys: {
-    partitionKey: todo => key('USER_TODO', todo.userId),
-    sortKey: todo => key('TODO', todo.todoId, 'CREATED_AT', todo.createdAt),
-  },
+  partitionKey: todo => key('USER_TODO', todo.userId),
+  sortKey: todo => key('TODO', todo.todoId, 'CREATED_AT', todo.createdAt),
 });
 type Todo = Entity<typeof todoEntity>;
 ```
