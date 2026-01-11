@@ -42,6 +42,34 @@ const batchGet = new BatchGet({
 const { items } = await todoEntity.send(batchGet);
 ```
 
+### Batch Projected Gets
+
+Use the `BatchProjectedGet` command when you only need specific attributes from multiple items.
+
+Due to the items being a subset of your entity schema, batch projected gets require you to provide a Zod schema defining the shape of the projected items.
+
+```ts
+const batchProjectedGet = new BatchProjectedGet({
+  keys: [
+    { userId: '123', todoId: '456' },
+    { userId: '789', todoId: '101' },
+  ],
+  projection: ['title', 'completed'],
+  projectionSchema: z.object({
+    title: z.string(),
+    completed: z.boolean(),
+  }),
+});
+
+const { items } = await todoEntity.send(batchProjectedGet);
+// items is typed as Array<{ title: string; completed: boolean; }>
+console.log(items);
+```
+
+<Aside type='tip'>
+Projection expressions are useful when working with large items but only needing a subset of attributes. This reduces the amount of data transferred and can lower read capacity costs.
+</Aside>
+
 ## Batch Writes
 
 The `BatchWrite` command enables you to put (create or replace) and/or delete multiple items in a single operation:
@@ -114,6 +142,61 @@ The `BatchGet` command returns the following result:
   </PropTableEntry>
 </ResultTable>
 
+## Batch Projected Get Command Config
+
+The `BatchProjectedGet` command expects the following input config:
+```ts
+{
+  keys: Array<Partial<Schema>>;
+  projection: string[];
+  projectionSchema: ZodObject;
+  consistent?: boolean;
+  skipValidation?: boolean;
+  timeoutMs?: number;
+  abortController?: AbortController;
+  returnConsumedCapacity?: ReturnConsumedCapacity;
+}
+```
+
+<ConfigTable>
+  <PropTableEntry name='keys' type='Array&lt;Partial&lt;Schema&gt;&gt;' required>
+    An array of primary keys for the items to retrieve. Each key should contain the attributes that make up the primary key. If using [computed primary keys](/guides/entities/#computed-primary-keys), only include the attributes used by your key builder functions.
+  </PropTableEntry>
+  <PropTableEntry name='projection' type='string[]' required>
+    An array of attribute names to include in the returned items.
+  </PropTableEntry>
+  <PropTableEntry name='projectionSchema' type='ZodObject' required>
+    A Zod schema defining the shape of the projected items.
+  </PropTableEntry>
+  <PropTableEntry name='consistent?' type='boolean' defaultValue='false'>
+    If set to true, DynamoDB will ensure a strongly consistent read for all items.
+  </PropTableEntry>
+</ConfigTable>
+
+## Batch Projected Get Command Result
+
+The `BatchProjectedGet` command returns the following result:
+```ts
+{
+  items: ProjectionSchema[];
+  unprocessedKeys?: Array<Partial<ProjectionSchema>>;
+  responseMetadata?: ResponseMetadata;
+  consumedCapacity?: ConsumedCapacity;
+}
+```
+
+<ResultTable>
+  <PropTableEntry name='items' type='ProjectionSchema[]'>
+    An array of retrieved items.
+    Will be an empty array if no items were found.
+    Unlike the standard `BatchGet`, items will be typed according to the provided projection schema.
+  </PropTableEntry>
+  <PropTableEntry name='unprocessedKeys?' type='Array&lt;Partial&lt;ProjectionSchema&gt;&gt;'>
+    If present, contains the keys that were not processed due to provisioned throughput limits.
+    These keys can be used in a subsequent batch get request to retry retrieval.
+  </PropTableEntry>
+</ResultTable>
+
 ## Batch Write Command Config
 
 The `BatchWrite` command expects the following input config:
@@ -175,6 +258,7 @@ The `BatchWrite` command returns the following result:
 
 ```ts
 import { BatchGet } from 'dynamo-document-builder/commands/batch-get';
+import { BatchProjectedGet } from 'dynamo-document-builder/commands/batch-projected-get';
 import { BatchWrite } from 'dynamo-document-builder/commands/batch-write';
 ```
 
@@ -183,6 +267,9 @@ import { BatchWrite } from 'dynamo-document-builder/commands/batch-write';
 - [`BatchGet`](/api-reference/classes/batchget)
 - [`BatchGetConfig`](/api-reference/type-aliases/batchgetconfig)
 - [`BatchGetResult`](/api-reference/type-aliases/batchgetresult)
+- [`BatchProjectedGet`](/api-reference/classes/batchprojectedget)
+- [`BatchProjectedGetConfig`](/api-reference/type-aliases/batchprojectedgetconfig)
+- [`BatchProjectedGetResult`](/api-reference/type-aliases/batchprojectedgetresult)
 - [`BatchWrite`](/api-reference/classes/batchwrite)
 - [`BatchWriteConfig`](/api-reference/type-aliases/batchwriteconfig)
 - [`BatchWriteResult`](/api-reference/type-aliases/batchwriteresult)
