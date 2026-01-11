@@ -32,7 +32,7 @@ In the above example, we might use `USER#123#TODO#456` as the `PK` where the `12
 
 Document Builder makes this easier by enabling you to compute your primary keys from your data that's already in the schema:
 
-```ts {6-7,10} ins={12-15}
+```ts {6-7,10} ins={12-13}
 import { key } from 'dynamo-document-builder';
 
 const todoEntity = new DynamoEntity({
@@ -44,10 +44,8 @@ const todoEntity = new DynamoEntity({
     isComplete: z.boolean().default(false),
     createdAt: z.iso.date(),
   }),
-  keys: {
-    partitionKey: todo => key('USER', todo.userId, 'TODO', todo.todoId),
-    sortKey: todo => key('CREATED_AT', todo.createdAt),
-  }
+  partitionKey: todo => key('USER', todo.userId, 'TODO', todo.todoId),
+  sortKey: todo => key('CREATED_AT', todo.createdAt),
 })
 ```
 
@@ -103,10 +101,8 @@ const todoEntity = new DynamoEntity({
     isComplete: z.boolean().default(false),
     createdAt: z.iso.date(),
   }),
-  keys: {
-    partitionKey: todo => key('USER', todo.userId, 'TODO', todo.todoId),
-    sortKey: todo => key('CREATED_AT', todo.createdAt),
-  }
+  partitionKey: todo => key('USER', todo.userId, 'TODO', todo.todoId),
+  sortKey: todo => key('CREATED_AT', todo.createdAt),
 })
 
 type TodoEntity = Entity<typeof todoEntity>;
