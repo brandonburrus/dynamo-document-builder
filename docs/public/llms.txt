@@ -100,6 +100,33 @@ type Todo = Entity<typeof todoEntity>;
 - Types can be inferred using `Entity<T>` utility type
 - `EncodedEntity<T>` type returns pre-codec data types
 
+**Sparse Indexes**:
+Document Builder supports sparse secondary indexes by returning `undefined` from index key builders. Items with `undefined` keys will not be indexed.
+
+```typescript
+import { indexKey } from 'dynamo-document-builder';
+
+const sparseEntity = new DynamoEntity({
+  table: parentTable,
+  schema: z.object({
+    id: z.string(),
+    title: z.string(),
+    publishedAt: z.string().optional(),
+  }),
+  partitionKey: item => key('ITEM', item.id),
+  sortKey: () => 'METADATA',
+  globalSecondaryIndexes: {
+    PublishedItemsIndex: {
+      // Only index items with publishedAt set
+      partitionKey: indexKey('PUBLISHED_AT', item.publishedAt),
+      sortKey: indexKey('ITEM_ID', item.id),
+    },
+  },
+});
+```
+
+The `indexKey()` helper returns `undefined` if any value is `undefined`, making sparse index creation easier. For GSI sparse indexes, if the partition key is `undefined`, the sort key builder is not called.
+
 ### Commands
 
 Document Builder uses a command pattern (like AWS SDK v3) for operations. Commands are tree-shakable and executed via `entity.send()`.
@@ -207,8 +234,9 @@ async function parallelScan(totalSegments: number) {
 Retrieve multiple items by primary keys in a single operation.
 
 ```typescript
-import { BatchGet } from 'dynamo-document-builder';
+import { BatchGet, BatchProjectedGet } from 'dynamo-document-builder';
 
+// Basic batch get
 const { items, unprocessedKeys } = await todoEntity.send(new BatchGet({
   keys: [
     { userId: '123', todoId: '456' },
@@ -217,13 +245,28 @@ const { items, unprocessedKeys } = await todoEntity.send(new BatchGet({
   consistent: true,
 }));
 
+// Batch projected get (specific attributes only)
+const { items } = await todoEntity.send(new BatchProjectedGet({
+  keys: [
+    { userId: '123', todoId: '456' },
+    { userId: '789', todoId: '101' },
+  ],
+  projection: ['title', 'completed'],
+  projectionSchema: z.object({
+    title: z.string(),
+    completed: z.boolean(),
+  }),
+}));
+
 // Handle unprocessed keys with retry
 if (unprocessedKeys?.length) {
   // Retry with exponential backoff
 }
 ```
 
-**Options**: `keys` (required), `consistent`, `skipValidation`, `returnConsumedCapacity`
+**Options**: 
+- `BatchGet`: `keys` (required), `consistent`, `skipValidation`, `returnConsumedCapacity`
+- `BatchProjectedGet`: `keys` (required), `projection` (required), `projectionSchema` (required), `consistent`, `skipValidation`, `returnConsumedCapacity`
 
 ### Transact Get
 
@@ -629,6 +672,7 @@ import { Delete } from 'dynamo-document-builder/commands/delete';
 import { Query } from 'dynamo-document-builder/commands/query';
 import { Scan } from 'dynamo-document-builder/commands/scan';
 import { BatchGet } from 'dynamo-document-builder/commands/batch-get';
+import { BatchProjectedGet } from 'dynamo-document-builder/commands/batch-projected-get';
 import { BatchWrite } from 'dynamo-document-builder/commands/batch-write';
 import { TransactGet } from 'dynamo-document-builder/commands/transact-get';
 import { TransactWrite } from 'dynamo-document-builder/commands/transact-write';
@@ -794,10 +838,10 @@ const auditEntity = new DynamoEntity({
 
 ```typescript
 // Core
-import { DynamoTable, DynamoEntity, key, type Entity } from 'dynamo-document-builder';
+import { DynamoTable, DynamoEntity, key, indexKey, type Entity } from 'dynamo-document-builder';
 
 // Read Commands
-import { Get, Query, Scan, BatchGet, TransactGet } from 'dynamo-document-builder';
+import { Get, Query, Scan, BatchGet, BatchProjectedGet, TransactGet } from 'dynamo-document-builder';
 
 // Write Commands
 import { Put, Update, Delete, BatchWrite, TransactWrite } from 'dynamo-document-builder';
