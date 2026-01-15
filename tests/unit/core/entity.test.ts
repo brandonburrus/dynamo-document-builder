@@ -452,10 +452,9 @@ describe('DynamoEntity', () => {
           gsi1sk: 'SKValue',
         })
 
-        expect(gsiKeys).toEqual({
-          GSI1SK: 'GSI1SK#SKValue',
-        })
+        expect(gsiKeys).toEqual({})
         expect(gsiKeys).not.toHaveProperty('GSI1PK')
+        expect(gsiKeys).not.toHaveProperty('GSI1SK')
       })
 
       it('should omit GSI sort key when builder returns undefined', () => {
@@ -563,9 +562,9 @@ describe('DynamoEntity', () => {
           timestamp: 1234567890,
         })
 
-        expect(keysWithoutStatus).toEqual({
-          GSI1SK: 1234567890,
-        })
+        expect(keysWithoutStatus).toEqual({})
+        expect(keysWithoutStatus).not.toHaveProperty('GSI1PK')
+        expect(keysWithoutStatus).not.toHaveProperty('GSI1SK')
 
         const keysWithStatus = entity.buildGlobalSecondaryIndexKey('GSI1', {
           id: '123',
