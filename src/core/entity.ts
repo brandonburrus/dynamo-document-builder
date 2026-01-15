@@ -5,6 +5,7 @@ import type {
   DynamoKey,
   GlobalSecondaryIndexKeyBuilders,
   LocalSecondaryIndexKeyBuilders,
+  DynamoIndexKey,
 } from '@/core/key'
 import type { DynamoTable } from '@/core/table'
 import type { ZodObject } from 'zod/v4'
@@ -100,19 +101,28 @@ export class DynamoEntity<Schema extends ZodObject> {
   public buildGlobalSecondaryIndexKey(
     indexName: string,
     item: Partial<EntitySchema<Schema>>,
-  ): DynamoKey {
+  ): DynamoIndexKey {
     const gsiKeyBuilder = this.#gsi[indexName]
     const gsiKeyNames = this.table.globalSecondaryIndexKeyNames[indexName]
 
     if (!gsiKeyBuilder || !gsiKeyNames) {
-      return item as DynamoKey
+      return item as DynamoIndexKey
     }
 
-    const key: DynamoKey = {
-      [gsiKeyNames.partitionKey]: gsiKeyBuilder.partitionKey(item as EntitySchema<Schema>),
+    const key: DynamoIndexKey = {}
+    if (gsiKeyNames.partitionKey) {
+      const gsiPK = gsiKeyBuilder.partitionKey(item as EntitySchema<Schema>)
+      if (gsiPK !== undefined) {
+        key[gsiKeyNames.partitionKey] = gsiPK
+      } else if (gsiPK === undefined) {
+        return {}
+      }
     }
     if (gsiKeyBuilder.sortKey && gsiKeyNames.sortKey) {
-      key[gsiKeyNames.sortKey] = gsiKeyBuilder.sortKey(item as EntitySchema<Schema>)
+      const gsiSK = gsiKeyBuilder.sortKey(item as EntitySchema<Schema>)
+      if (gsiSK !== undefined) {
+        key[gsiKeyNames.sortKey] = gsiSK
+      }
     }
     return key
   }
@@ -120,21 +130,27 @@ export class DynamoEntity<Schema extends ZodObject> {
   public buildLocalSecondaryIndexKey(
     indexName: string,
     item: Partial<EntitySchema<Schema>>,
-  ): DynamoKey {
+  ): DynamoIndexKey {
     const lsiKeyBuilder = this.#lsi[indexName]
     const lsiKeyNames = this.table.localSecondaryIndexKeyNames[indexName]
 
     if (!this.#pk || !lsiKeyBuilder || !lsiKeyNames) {
-      return item as DynamoKey
+      return item as DynamoIndexKey
     }
 
-    return {
+    const key: DynamoIndexKey = {
       [this.table.partitionKeyName]: this.buildPartitionKey(item)!,
-      [lsiKeyNames.sortKey]: lsiKeyBuilder.sortKey(item as EntitySchema<Schema>),
-    } satisfies DynamoKey
+    }
+    const lsiSK = lsiKeyBuilder.sortKey(item as EntitySchema<Schema>)
+    if (lsiSK !== undefined) {
+      key[lsiKeyNames.sortKey] = lsiSK
+    }
+    return key
   }
 
-  public buildPrimaryOrIndexKey(keyInput: EntityKeyInput<EntitySchema<Schema>>): DynamoKey {
+  public buildPrimaryOrIndexKey(
+    keyInput: EntityKeyInput<EntitySchema<Schema>>,
+  ): DynamoKey | DynamoIndexKey {
     if ('key' in keyInput) {
       return this.buildPrimaryKey(keyInput.key)
     }

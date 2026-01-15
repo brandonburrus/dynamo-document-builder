@@ -179,6 +179,68 @@ DynamoDB now supports defining multi-attribute keys for global secondary indexes
 See the [AWS Docs](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GSI.DesignPattern.MultiAttributeKeys.html) for more information.
 </Aside>
 
+## Sparse Indexes
+
+When defining secondary indexes, you may not always want every item in your entity to be indexed. For example, you may only want to index items that have a specific attribute set.
+
+Document Builder supports this use case by allowing you to return `undefined` from your secondary index key builders. If either the partition key or sort key builder for a secondary index returns `undefined`, then that index will not be created for that item.
+
+```ts
+const sparseIndexEntity = new DynamoEntity({
+  table: parentTable,
+  schema: z.object({
+    id: z.string(),
+    title: z.string(),
+    publishedAt: z.string().optional(),
+  }),
+  partitionKey: item => key('ITEM', item.id),
+  sortKey: () => 'METADATA',
+  globalSecondaryIndexes: {
+    PublishedItemsIndex: {
+      partitionKey: item => item.publishedAt 
+        ? key('PUBLISHED_AT', item.publishedAt)
+        : undefined,
+      sortKey: item => item.publishedAt
+        ? key('ITEM_ID', item.id)
+        : undefined,
+    },
+  },
+});
+```
+
+In the above example, the `PublishedItemsIndex` will only be created for items that have the `publishedAt` attribute set. If `publishedAt` is `undefined`, then the index keys will also be `undefined` and the index will not be created for that item.
+
+### The `indexKey` function
+
+Similar to the `key` function for creating composite primary keys, Document Builder also provides an `indexKey` function for creating secondary index keys.
+
+This function works the same way as `key`, but is intended to be used specifically for sparse secondary indexes.
+
+```ts
+const sparseIndexEntity = new DynamoEntity({
+  table: parentTable,
+  schema: z.object({
+    id: z.string(),
+    title: z.string(),
+    publishedAt: z.string().optional(),
+  }),
+  partitionKey: item => key('ITEM', item.id),
+  sortKey: () => 'METADATA',
+  globalSecondaryIndexes: {
+    PublishedItemsIndex: {
+      partitionKey: indexKey('PUBLISHED_AT', item.publishedAt),
+      sortKey: indexKey('ITEM_ID', item.id),
+    },
+  },
+});
+```
+
+The main difference with using `indexKey` is that if any of the values passed to it are `undefined`, then the entire key will be `undefined`, making it easier to create sparse indexes.
+
+<Aside type='note' title='Note on Sparse GSIs'>
+For GSI Sparse Indexes, if the partition key is `undefined`, the sort key builder will not be called. This is because both keys are required to create the index, so if the partition key is missing, there's no need to compute the sort key.
+</Aside>
+
 ## Commands
 
 Document Builder uses the same command pattern as the AWS SDK v3 to perform operations on entities. This is done using the `.send()` method on the entity instance.

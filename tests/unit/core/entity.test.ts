@@ -427,4 +427,342 @@ describe('DynamoEntity', () => {
 
     expect(results).toEqual([0, 7, 14])
   })
+
+  describe('sparse index support', () => {
+    describe('buildGlobalSecondaryIndexKey()', () => {
+      it('should omit GSI partition key when builder returns undefined', () => {
+        const entity = new DynamoEntity({
+          table: testTable,
+          schema: z.object({
+            id: z.string(),
+            gsi1pk: z.string().optional(),
+            gsi1sk: z.string(),
+          }),
+          partitionKey: item => `USER#${item.id}`,
+          globalSecondaryIndexes: {
+            GSI1: {
+              partitionKey: item => (item.gsi1pk ? `GSI1PK#${item.gsi1pk}` : undefined),
+              sortKey: item => `GSI1SK#${item.gsi1sk}`,
+            },
+          },
+        })
+
+        const gsiKeys = entity.buildGlobalSecondaryIndexKey('GSI1', {
+          id: '123',
+          gsi1sk: 'SKValue',
+        })
+
+        expect(gsiKeys).toEqual({})
+        expect(gsiKeys).not.toHaveProperty('GSI1PK')
+        expect(gsiKeys).not.toHaveProperty('GSI1SK')
+      })
+
+      it('should omit GSI sort key when builder returns undefined', () => {
+        const entity = new DynamoEntity({
+          table: testTable,
+          schema: z.object({
+            id: z.string(),
+            gsi1pk: z.string(),
+            gsi1sk: z.string().optional(),
+          }),
+          partitionKey: item => `USER#${item.id}`,
+          globalSecondaryIndexes: {
+            GSI1: {
+              partitionKey: item => `GSI1PK#${item.gsi1pk}`,
+              sortKey: item => (item.gsi1sk ? `GSI1SK#${item.gsi1sk}` : undefined),
+            },
+          },
+        })
+
+        const gsiKeys = entity.buildGlobalSecondaryIndexKey('GSI1', {
+          id: '123',
+          gsi1pk: 'PKValue',
+        })
+
+        expect(gsiKeys).toEqual({
+          GSI1PK: 'GSI1PK#PKValue',
+        })
+        expect(gsiKeys).not.toHaveProperty('GSI1SK')
+      })
+
+      it('should omit both keys when both builders return undefined', () => {
+        const entity = new DynamoEntity({
+          table: testTable,
+          schema: z.object({
+            id: z.string(),
+            gsi1pk: z.string().optional(),
+            gsi1sk: z.string().optional(),
+          }),
+          partitionKey: item => `USER#${item.id}`,
+          globalSecondaryIndexes: {
+            GSI1: {
+              partitionKey: item => (item.gsi1pk ? `GSI1PK#${item.gsi1pk}` : undefined),
+              sortKey: item => (item.gsi1sk ? `GSI1SK#${item.gsi1sk}` : undefined),
+            },
+          },
+        })
+
+        const gsiKeys = entity.buildGlobalSecondaryIndexKey('GSI1', {
+          id: '123',
+        })
+
+        expect(gsiKeys).toEqual({})
+      })
+
+      it('should include keys when builders return defined values', () => {
+        const entity = new DynamoEntity({
+          table: testTable,
+          schema: z.object({
+            id: z.string(),
+            gsi1pk: z.string().optional(),
+            gsi1sk: z.string().optional(),
+          }),
+          partitionKey: item => `USER#${item.id}`,
+          globalSecondaryIndexes: {
+            GSI1: {
+              partitionKey: item => (item.gsi1pk ? `GSI1PK#${item.gsi1pk}` : undefined),
+              sortKey: item => (item.gsi1sk ? `GSI1SK#${item.gsi1sk}` : undefined),
+            },
+          },
+        })
+
+        const gsiKeys = entity.buildGlobalSecondaryIndexKey('GSI1', {
+          id: '123',
+          gsi1pk: 'PKValue',
+          gsi1sk: 'SKValue',
+        })
+
+        expect(gsiKeys).toEqual({
+          GSI1PK: 'GSI1PK#PKValue',
+          GSI1SK: 'GSI1SK#SKValue',
+        })
+      })
+
+      it('should handle partial key definitions for sparse indexes', () => {
+        const entity = new DynamoEntity({
+          table: testTable,
+          schema: z.object({
+            id: z.string(),
+            status: z.string().optional(),
+            timestamp: z.number().optional(),
+          }),
+          partitionKey: item => `USER#${item.id}`,
+          globalSecondaryIndexes: {
+            GSI1: {
+              partitionKey: item =>
+                item.status === 'active' ? `STATUS#${item.status}` : undefined,
+              sortKey: item => (item.timestamp ? item.timestamp : undefined),
+            },
+          },
+        })
+
+        const keysWithoutStatus = entity.buildGlobalSecondaryIndexKey('GSI1', {
+          id: '123',
+          status: 'inactive',
+          timestamp: 1234567890,
+        })
+
+        expect(keysWithoutStatus).toEqual({})
+        expect(keysWithoutStatus).not.toHaveProperty('GSI1PK')
+        expect(keysWithoutStatus).not.toHaveProperty('GSI1SK')
+
+        const keysWithStatus = entity.buildGlobalSecondaryIndexKey('GSI1', {
+          id: '123',
+          status: 'active',
+          timestamp: 1234567890,
+        })
+
+        expect(keysWithStatus).toEqual({
+          GSI1PK: 'STATUS#active',
+          GSI1SK: 1234567890,
+        })
+      })
+    })
+
+    describe('buildLocalSecondaryIndexKey()', () => {
+      it('should omit LSI sort key when builder returns undefined', () => {
+        const entity = new DynamoEntity({
+          table: testTable,
+          schema: z.object({
+            id: z.string(),
+            sort: z.string(),
+            lsi1sk: z.string().optional(),
+          }),
+          partitionKey: item => `USER#${item.id}`,
+          sortKey: item => `SORT#${item.sort}`,
+          localSecondaryIndexes: {
+            LSI1: {
+              sortKey: item => (item.lsi1sk ? `LSI1SK#${item.lsi1sk}` : undefined),
+            },
+          },
+        })
+
+        const lsiKeys = entity.buildLocalSecondaryIndexKey('LSI1', {
+          id: '123',
+          sort: '456',
+        })
+
+        expect(lsiKeys).toEqual({
+          PK: 'USER#123',
+        })
+        expect(lsiKeys).not.toHaveProperty('LSI1SK')
+      })
+
+      it('should include partition key and sort key when builder returns defined value', () => {
+        const entity = new DynamoEntity({
+          table: testTable,
+          schema: z.object({
+            id: z.string(),
+            sort: z.string(),
+            lsi1sk: z.string().optional(),
+          }),
+          partitionKey: item => `USER#${item.id}`,
+          sortKey: item => `SORT#${item.sort}`,
+          localSecondaryIndexes: {
+            LSI1: {
+              sortKey: item => (item.lsi1sk ? `LSI1SK#${item.lsi1sk}` : undefined),
+            },
+          },
+        })
+
+        const lsiKeys = entity.buildLocalSecondaryIndexKey('LSI1', {
+          id: '123',
+          sort: '456',
+          lsi1sk: 'LSIValue',
+        })
+
+        expect(lsiKeys).toEqual({
+          PK: 'USER#123',
+          LSI1SK: 'LSI1SK#LSIValue',
+        })
+      })
+
+      it('should handle sparse LSI correctly', () => {
+        const entity = new DynamoEntity({
+          table: testTable,
+          schema: z.object({
+            id: z.string(),
+            sort: z.string(),
+            priority: z.number().optional(),
+          }),
+          partitionKey: item => `USER#${item.id}`,
+          sortKey: item => `SORT#${item.sort}`,
+          localSecondaryIndexes: {
+            LSI1: {
+              sortKey: item =>
+                item.priority !== undefined && item.priority > 0 ? item.priority : undefined,
+            },
+          },
+        })
+
+        const keysWithoutPriority = entity.buildLocalSecondaryIndexKey('LSI1', {
+          id: '123',
+          sort: '456',
+        })
+
+        expect(keysWithoutPriority).toEqual({
+          PK: 'USER#123',
+        })
+
+        const keysWithPriority = entity.buildLocalSecondaryIndexKey('LSI1', {
+          id: '123',
+          sort: '456',
+          priority: 5,
+        })
+
+        expect(keysWithPriority).toEqual({
+          PK: 'USER#123',
+          LSI1SK: 5,
+        })
+      })
+    })
+
+    describe('buildPrimaryOrIndexKey()', () => {
+      it('should return DynamoIndexKey for GSI with undefined values', () => {
+        const entity = new DynamoEntity({
+          table: testTable,
+          schema: z.object({
+            id: z.string(),
+            gsi1pk: z.string().optional(),
+            gsi1sk: z.string().optional(),
+          }),
+          partitionKey: item => `USER#${item.id}`,
+          globalSecondaryIndexes: {
+            GSI1: {
+              partitionKey: item => (item.gsi1pk ? `GSI1PK#${item.gsi1pk}` : undefined),
+              sortKey: item => (item.gsi1sk ? `GSI1SK#${item.gsi1sk}` : undefined),
+            },
+          },
+        })
+
+        const keyWithPartialValues = entity.buildPrimaryOrIndexKey({
+          index: {
+            GSI1: {
+              id: '123',
+              gsi1pk: 'PKValue',
+            },
+          },
+        })
+
+        expect(keyWithPartialValues).toEqual({
+          GSI1PK: 'GSI1PK#PKValue',
+        })
+      })
+
+      it('should return DynamoIndexKey for LSI with undefined values', () => {
+        const entity = new DynamoEntity({
+          table: testTable,
+          schema: z.object({
+            id: z.string(),
+            sort: z.string(),
+            lsi1sk: z.string().optional(),
+          }),
+          partitionKey: item => `USER#${item.id}`,
+          sortKey: item => `SORT#${item.sort}`,
+          localSecondaryIndexes: {
+            LSI1: {
+              sortKey: item => (item.lsi1sk ? `LSI1SK#${item.lsi1sk}` : undefined),
+            },
+          },
+        })
+
+        const keyWithoutSortKey = entity.buildPrimaryOrIndexKey({
+          index: {
+            LSI1: {
+              id: '123',
+              sort: '456',
+            },
+          },
+        })
+
+        expect(keyWithoutSortKey).toEqual({
+          PK: 'USER#123',
+        })
+      })
+
+      it('should return DynamoKey for primary key', () => {
+        const entity = new DynamoEntity({
+          table: testTable,
+          schema: z.object({
+            id: z.string(),
+            sort: z.string(),
+          }),
+          partitionKey: item => `USER#${item.id}`,
+          sortKey: item => `SORT#${item.sort}`,
+        })
+
+        const primaryKey = entity.buildPrimaryOrIndexKey({
+          key: {
+            id: '123',
+            sort: '456',
+          },
+        })
+
+        expect(primaryKey).toEqual({
+          PK: 'USER#123',
+          SK: 'SORT#456',
+        })
+      })
+    })
+  })
 })
