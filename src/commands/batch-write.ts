@@ -1,24 +1,72 @@
-import type { BaseConfig, BaseCommand, BaseResult } from '@/commands/base-command'
+import type { BaseConfig, BaseCommand, BaseResult } from '@/commands'
 import type { DynamoEntity } from '@/core/entity'
-import type { EntitySchema } from '@/core/core-types'
+import type { EntitySchema } from '@/core'
 import type { ItemCollectionMetrics, ReturnItemCollectionMetrics } from '@aws-sdk/client-dynamodb'
 import type { ZodObject } from 'zod/v4'
 import { BATCH_WRITE_VALIDATION_CONCURRENCY } from '@/internal-constants'
 import { BatchWriteCommand } from '@aws-sdk/lib-dynamodb'
 import pMap from 'p-map'
 
+/**
+ * Configuration for the BatchWrite command.
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ */
 export type BatchWriteConfig<Schema extends ZodObject> = BaseConfig & {
   items?: Array<EntitySchema<Schema>>
   deletes?: Array<Partial<EntitySchema<Schema>>>
   returnItemCollectionMetrics?: ReturnItemCollectionMetrics
 }
 
+/**
+ * Result of the BatchWrite command.
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ */
 export type BatchWriteResult<Schema extends ZodObject> = BaseResult & {
   unprocessedPuts?: Array<EntitySchema<Schema>>
   unprocessedDeletes?: Array<Partial<EntitySchema<Schema>>>
   itemColectionMetrics?: ItemCollectionMetrics
 }
 
+/**
+ * Command to put and/or delete multiple items in a single operation.
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ *
+ * @example
+ * ```typescript
+ * import { DynamoTable, DynamoEntity, key, BatchWrite } from 'dynamo-document-builder';
+ *
+ * const table = new DynamoTable({
+ *   tableName: 'ExampleTable',
+ *   documentClient,
+ * });
+ *
+ * const todoEntity = new DynamoEntity({
+ *   table,
+ *   schema: z.object({
+ *     userId: z.string(),
+ *     todoId: z.string(),
+ *     title: z.string(),
+ *   }),
+ *   partitionKey: todo => key('USER', todo.userId),
+ *   sortKey: todo => key('TODO', todo.todoId),
+ * });
+ *
+ * const batchWriteCommand = new BatchWrite({
+ *   items: [
+ *     { userId: 'user1', todoId: 'todo1', title: 'Task 1' },
+ *     { userId: 'user2', todoId: 'todo2', title: 'Task 2' },
+ *   ],
+ *   deletes: [
+ *     { userId: 'user3', todoId: 'todo3' },
+ *   ],
+ * });
+ *
+ * const { unprocessedPuts, unprocessedDeletes } = await todoEntity.send(batchWriteCommand);
+ * ```
+ */
 export class BatchWrite<Schema extends ZodObject>
   implements BaseCommand<BatchWriteResult<Schema>, Schema>
 {

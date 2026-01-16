@@ -1,21 +1,21 @@
 import type { DynamoEntity } from '@/core/entity'
-import type { EntitySchema, TransactWriteOperation } from '@/core/core-types'
+import type { EntitySchema, TransactWriteOperation } from '@/core'
 import type {
   ItemCollectionMetrics,
   ReturnItemCollectionMetrics,
   ReturnValue,
 } from '@aws-sdk/client-dynamodb'
-import type { UpdateValues } from '@/updates/update-types'
+import type { UpdateValues } from '@/updates'
 import type { ZodObject } from 'zod/v4'
 import { UpdateCommand } from '@aws-sdk/lib-dynamodb'
 import { parseUpdate } from '@/updates/update-parser'
-import type {
-  BaseConfig,
-  BaseCommand,
-  BaseResult,
-  WriteTransactable,
-} from '@/commands/base-command'
+import type { BaseConfig, BaseCommand, BaseResult, WriteTransactable } from '@/commands'
 
+/**
+ * Configuration for the Update command.
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ */
 export type UpdateConfig<Schema extends ZodObject> = BaseConfig & {
   key: Partial<EntitySchema<Schema>>
   update: UpdateValues
@@ -23,11 +23,53 @@ export type UpdateConfig<Schema extends ZodObject> = BaseConfig & {
   returnItemCollectionMetrics?: ReturnItemCollectionMetrics
 }
 
+/**
+ * Result of the Update command.
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ */
 export type UpdateResult<Schema extends ZodObject> = BaseResult & {
   updatedItem?: Partial<EntitySchema<Schema>> | undefined
   itemCollectionMetrics?: ItemCollectionMetrics
 }
 
+/**
+ * Command to modify existing item attributes in a DynamoDB table.
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ *
+ * @example
+ * ```typescript
+ * import { DynamoTable, DynamoEntity, key, Update, add } from 'dynamo-document-builder';
+ *
+ * const table = new DynamoTable({
+ *   tableName: 'ExampleTable',
+ *   documentClient,
+ * });
+ *
+ * const userEntity = new DynamoEntity({
+ *   table,
+ *   schema: z.object({
+ *     userId: z.string(),
+ *     name: z.string(),
+ *     loginCount: z.number(),
+ *   }),
+ *   partitionKey: user => key('USER', user.userId),
+ *   sortKey: () => 'METADATA',
+ * });
+ *
+ * const updateCommand = new Update({
+ *   key: { userId: 'user123' },
+ *   update: {
+ *     name: 'Jane Doe',
+ *     loginCount: add(1),
+ *   },
+ *   returnValues: 'ALL_NEW',
+ * });
+ *
+ * const { updatedItem } = await userEntity.send(updateCommand);
+ * ```
+ */
 export class Update<Schema extends ZodObject>
   implements BaseCommand<UpdateResult<Schema>, Schema>, WriteTransactable<Schema>
 {

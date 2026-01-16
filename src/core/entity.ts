@@ -1,4 +1,4 @@
-import type { BaseCommand, BasePaginatable } from '@/commands/base-command'
+import type { BaseCommand, BasePaginatable } from '@/commands'
 import type {
   DynamoKeyableValue,
   DynamoKeyBuilder,
@@ -9,9 +9,21 @@ import type {
 } from '@/core/key'
 import type { DynamoTable } from '@/core/table'
 import type { ZodObject } from 'zod/v4'
-import type { EntitySchema, IndexName } from '@/core/core-types'
+import type { EntitySchema, IndexName } from '@/core'
 import { DocumentBuilderError } from '@/errors'
 
+/**
+ * Configuration type for creating a DynamoEntity.
+ *
+ * @template Schema - The Zod schema representing the entity's structure.
+ *
+ * @property table - The DynamoTable instance associated with the entity.
+ * @property schema - The Zod schema defining the entity's structure.
+ * @property partitionKey - Key builder function to build the partition key from an entity item.
+ * @property sortKey - Key builder function to build the sort key from an entity item.
+ * @property globalSecondaryIndexes - Mapping of global secondary index names to their key builders.
+ * @property localSecondaryIndexes - Mapping of local secondary index names to their key builders.
+ */
 export type DynamoEntityConfig<Schema extends ZodObject> = {
   table: DynamoTable
   schema: Schema
@@ -21,6 +33,12 @@ export type DynamoEntityConfig<Schema extends ZodObject> = {
   localSecondaryIndexes?: LocalSecondaryIndexKeyBuilders<EntitySchema<Schema>>
 }
 
+/**
+ * Input type for building *either* a DynamoDB primary key or secondary index key.
+ *
+ * This is used in cases where the user may want to specify either a full primary key
+ * or a secondary index key to identify an item.
+ */
 export type EntityKeyInput<Item> =
   | {
       key: Partial<Item>
@@ -31,6 +49,11 @@ export type EntityKeyInput<Item> =
       }
     }
 
+/**
+ * Core class that represents a DynamoDB entity.
+ *
+ * @template Schema - The Zod schema representing the entity's structure.
+ */
 export class DynamoEntity<Schema extends ZodObject> {
   #table: DynamoTable
   #schema: Schema
@@ -52,14 +75,23 @@ export class DynamoEntity<Schema extends ZodObject> {
     this.#lsi = config.localSecondaryIndexes ?? {}
   }
 
+  /**
+   * Gets the DynamoDB table associated with this entity.
+   */
   public get table(): DynamoTable {
     return this.#table
   }
 
+  /**
+   * Gets the Zod schema defining the structure of this entity.
+   */
   public get schema(): Schema {
     return this.#schema
   }
 
+  /**
+   * Gets the key builders for the secondary indexes defined on this entity.
+   */
   public get secondaryIndexKeyBuilders(): {
     gsi: GlobalSecondaryIndexKeyBuilders<EntitySchema<Schema>>
     lsi: LocalSecondaryIndexKeyBuilders<EntitySchema<Schema>>
@@ -70,14 +102,25 @@ export class DynamoEntity<Schema extends ZodObject> {
     }
   }
 
+  /**
+   * Builds the partition key for the given item using the entity's partition key builder.
+   */
   public buildPartitionKey(item: Partial<EntitySchema<Schema>>): DynamoKeyableValue | undefined {
     return this.#pk?.(item as EntitySchema<Schema>)
   }
 
+  /**
+   * Builds the sort key for the given item using the entity's sort key builder.
+   */
   public buildSortKey(item: Partial<EntitySchema<Schema>>): DynamoKeyableValue | undefined {
     return this.#sk?.(item as EntitySchema<Schema>)
   }
 
+  /**
+   * Builds the primary key for the given item, including both partition and sort keys if defined.
+   *
+   * If the entity does not have partition or sort key builders defined, the item is returned as-is.
+   */
   public buildPrimaryKey(item: Partial<EntitySchema<Schema>>): DynamoKey {
     if (!this.#pk && !this.#sk) {
       return item as DynamoKey
@@ -98,8 +141,14 @@ export class DynamoEntity<Schema extends ZodObject> {
     return key
   }
 
+  /**
+   * Builds the key for a global secondary index for the given item.
+   *
+   * If the specified index does not exist or its key builders are not defined,
+   * the item is returned as-is.
+   */
   public buildGlobalSecondaryIndexKey(
-    indexName: string,
+    indexName: IndexName,
     item: Partial<EntitySchema<Schema>>,
   ): DynamoIndexKey {
     const gsiKeyBuilder = this.#gsi[indexName]
@@ -127,8 +176,14 @@ export class DynamoEntity<Schema extends ZodObject> {
     return key
   }
 
+  /**
+   * Builds the key for a local secondary index for the given item.
+   *
+   * If the specified index does not exist or its key builders are not defined,
+   * the item is returned as-is.
+   */
   public buildLocalSecondaryIndexKey(
-    indexName: string,
+    indexName: IndexName,
     item: Partial<EntitySchema<Schema>>,
   ): DynamoIndexKey {
     const lsiKeyBuilder = this.#lsi[indexName]
@@ -148,6 +203,17 @@ export class DynamoEntity<Schema extends ZodObject> {
     return key
   }
 
+  /**
+   * Builds either a primary key or a secondary index key based on the provided input.
+   *
+   * If the input contains a `key`, the primary key is built.
+   * If the input contains an `index`, the corresponding secondary index key is built.
+   *
+   * Works similarly to the other key building methods and will pass-through the key or index
+   * input if the entity does not have the necessary key builders defined.
+   *
+   * @throws DocumentBuilderError if the index name is missing or not defined on the entity.
+   */
   public buildPrimaryOrIndexKey(
     keyInput: EntityKeyInput<EntitySchema<Schema>>,
   ): DynamoKey | DynamoIndexKey {
@@ -170,6 +236,9 @@ export class DynamoEntity<Schema extends ZodObject> {
     throw new DocumentBuilderError(`Index "${indexName}" is not defined on entity`)
   }
 
+  /**
+   * Builds all keys (primary and secondary index keys) for the given item.
+   */
   public buildAllKeys(item: Partial<EntitySchema<Schema>>): DynamoKey {
     const allKeys: DynamoKey = this.buildPrimaryKey(item)
     for (const indexName of Object.keys(this.#gsi)) {
@@ -181,12 +250,18 @@ export class DynamoEntity<Schema extends ZodObject> {
     return allKeys
   }
 
+  /**
+   * Sends a command to be executed against this entity's table.
+   */
   public async send<CommandOutput>(
     command: BaseCommand<CommandOutput, Schema>,
   ): Promise<CommandOutput> {
     return await command.execute(this)
   }
 
+  /**
+   * Paginates through results of a paginatable command for this entity's table.
+   */
   public async *paginate<CommandOutput>(
     paginatable: BasePaginatable<CommandOutput, Schema>,
   ): AsyncGenerator<CommandOutput, void, unknown> {

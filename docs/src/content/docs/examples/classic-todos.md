@@ -1,5 +1,5 @@
 ---
-title: Basic CRUD Operations
+title: Classic To-dos
 description: Quick example code of how basic CRUD operations would be implementing using the classic to-dos list as an example using Dynamo Document Builder
 ---
 

@@ -1,10 +1,10 @@
 import type { DynamoEntity } from '@/core/entity'
-import type { EntitySchema } from '@/core/core-types'
+import type { EntitySchema } from '@/core'
 import type { ScanConfig } from '@/commands/scan'
-import type { Projection } from '@/projections/projection-types'
+import type { Projection } from '@/projections'
 import type { ZodObject } from 'zod/v4'
 import { AttributeExpressionMap } from '@/attributes/attribute-map'
-import type { BaseCommand, BasePaginatable, BaseResult } from '@/commands/base-command'
+import type { BaseCommand, BasePaginatable, BaseResult } from '@/commands'
 import { PROJECTED_SCAN_VALIDATION_CONCURRENCY } from '@/internal-constants'
 import {
   type NativeAttributeValue,
@@ -17,12 +17,23 @@ import { parseCondition } from '@/conditions/condition-parser'
 import { parseProjection } from '@/projections/projection-parser'
 import pMap from 'p-map'
 
+/**
+ * Configuration for the ProjectedScan command.
+ *
+ * @template ProjectionSchema - The Zod schema defining the structure of the projected attributes.
+ */
 export type ProjectedScanConfig<ProjectionSchema extends ZodObject> =
   ScanConfig<ProjectionSchema> & {
     projection: Projection
     projectionSchema: ProjectionSchema
   }
 
+/**
+ * Result of the ProjectedScan command.
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ * @template ProjectionSchema - The Zod schema defining the structure of the projected attributes.
+ */
 export type ProjectedScanResult<
   Schema extends ZodObject,
   ProjectionSchema extends ZodObject,
@@ -33,6 +44,47 @@ export type ProjectedScanResult<
   lastEvaluatedKey?: Partial<EntitySchema<Schema>> | undefined
 }
 
+/**
+ * Command to scan entire table or index and retrieve specific attributes (expensive operation).
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ * @template ProjectionSchema - The Zod schema defining the structure of the projected attributes.
+ *
+ * @example
+ * ```typescript
+ * import { DynamoTable, DynamoEntity, key, ProjectedScan } from 'dynamo-document-builder';
+ *
+ * const table = new DynamoTable({
+ *   tableName: 'ExampleTable',
+ *   documentClient,
+ * });
+ *
+ * const todoEntity = new DynamoEntity({
+ *   table,
+ *   schema: z.object({
+ *     userId: z.string(),
+ *     todoId: z.string(),
+ *     title: z.string(),
+ *     description: z.string(),
+ *     isComplete: z.boolean(),
+ *   }),
+ *   partitionKey: todo => key('USER', todo.userId),
+ *   sortKey: todo => key('TODO', todo.todoId),
+ * });
+ *
+ * const projectedScanCommand = new ProjectedScan({
+ *   projection: ['title', 'isComplete'],
+ *   projectionSchema: z.object({
+ *     title: z.string(),
+ *     isComplete: z.boolean(),
+ *   }),
+ *   filter: { isComplete: false },
+ *   limit: 100,
+ * });
+ *
+ * const { items, scannedCount } = await todoEntity.send(projectedScanCommand);
+ * ```
+ */
 export class ProjectedScan<Schema extends ZodObject, ProjectedSchema extends ZodObject>
   implements
     BaseCommand<ProjectedScanResult<Schema, ProjectedSchema>, Schema>,
