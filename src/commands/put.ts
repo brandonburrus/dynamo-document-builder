@@ -1,5 +1,5 @@
 import type { DynamoEntity } from '@/core/entity'
-import type { EntitySchema, TransactWriteOperation } from '@/core/core-types'
+import type { EntitySchema, TransactWriteOperation } from '@/core'
 import type {
   ItemCollectionMetrics,
   ReturnItemCollectionMetrics,
@@ -7,24 +7,66 @@ import type {
 } from '@aws-sdk/client-dynamodb'
 import type { ZodObject } from 'zod/v4'
 import { PutCommand } from '@aws-sdk/lib-dynamodb'
-import type {
-  BaseConfig,
-  BaseCommand,
-  BaseResult,
-  WriteTransactable,
-} from '@/commands/base-command'
+import type { BaseConfig, BaseCommand, BaseResult, WriteTransactable } from '@/commands'
 
+/**
+ * Configuration for the Put command.
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ */
 export type PutConfig<Schema extends ZodObject> = BaseConfig & {
   item: EntitySchema<Schema>
   returnValues?: ReturnValue
   returnItemCollectionMetrics?: ReturnItemCollectionMetrics
 }
 
+/**
+ * Result of the Put command.
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ */
 export type PutResult<Schema extends ZodObject> = BaseResult & {
   returnItem: Partial<EntitySchema<Schema>> | undefined
   itemCollectionMetrics?: ItemCollectionMetrics
 }
 
+/**
+ * Command to create or replace an item in a DynamoDB table.
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ *
+ * @example
+ * ```typescript
+ * import { DynamoTable, DynamoEntity, key, Put } from 'dynamo-document-builder';
+ *
+ * const table = new DynamoTable({
+ *   tableName: 'ExampleTable',
+ *   documentClient,
+ * });
+ *
+ * const userEntity = new DynamoEntity({
+ *   table,
+ *   schema: z.object({
+ *     userId: z.string(),
+ *     name: z.string(),
+ *     email: z.string(),
+ *   }),
+ *   partitionKey: user => key('USER', user.userId),
+ *   sortKey: () => 'METADATA',
+ * });
+ *
+ * const putCommand = new Put({
+ *   item: {
+ *     userId: 'user123',
+ *     name: 'John Doe',
+ *     email: 'john@example.com',
+ *   },
+ *   returnValues: 'ALL_OLD',
+ * });
+ *
+ * const { returnItem } = await userEntity.send(putCommand);
+ * ```
+ */
 export class Put<Schema extends ZodObject>
   implements BaseCommand<PutResult<Schema>, Schema>, WriteTransactable<Schema>
 {

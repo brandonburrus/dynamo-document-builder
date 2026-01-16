@@ -1,5 +1,5 @@
 import { AttributeExpressionMap } from '@/attributes/attribute-map'
-import type { Projection } from '@/projections/projection-types'
+import type { Projection } from '@/projections'
 
 export type ProjectionResult = {
   projectionExpression: string

@@ -102,6 +102,7 @@
   "author": "Brandon Burrus <brandon@burrus.io>",
   "license": "MIT",
   "type": "module",
+  "sideEffects": false,
   "homepage": "https://dynamodocumentbuilder.com",
   "repository": {
     "type": "git",

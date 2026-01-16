@@ -1,21 +1,67 @@
-import type { BaseConfig, BaseCommand, BaseResult } from '@/commands/base-command'
+import type { BaseConfig, BaseCommand, BaseResult } from '@/commands'
 import type { DynamoEntity } from '@/core/entity'
-import type { EntitySchema } from '@/core/core-types'
+import type { EntitySchema } from '@/core'
 import type { ZodObject } from 'zod/v4'
 import { BATCH_GET_VALIDATION_CONCURRENCY } from '@/internal-constants'
 import { BatchGetCommand } from '@aws-sdk/lib-dynamodb'
 import pMap from 'p-map'
 
+/**
+ * Configuration for the BatchGet command.
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ */
 export type BatchGetConfig<Schema extends ZodObject> = BaseConfig & {
   keys: Array<Partial<EntitySchema<Schema>>>
   consistent?: boolean
 }
 
+/**
+ * Result of the BatchGet command.
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ */
 export type BatchGetResult<Schema extends ZodObject> = BaseResult & {
   items: Array<EntitySchema<Schema>>
   unprocessedKeys?: Array<Partial<EntitySchema<Schema>>>
 }
 
+/**
+ * Command to perform a batch get operation on a DynamoDB table.
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ *
+ * @example
+ * ```typescript
+ * import { DynamoTable, DynamoEntity, key, BatchGet } from 'dynamo-document-builder';
+ *
+ * const table = new DynamoTable({
+ *   tableName: 'ExampleTable',
+ *   documentClient,
+ * });
+ *
+ * const userEntity = new DynamoEntity({
+ *   table,
+ *   schema: z.object({
+ *     userId: z.string(),
+ *     name: z.string(),
+ *     age: z.number(),
+ *   }),
+ *   partitionKey: user => key('USER', user.userId),
+ *   sortKey: () => 'USER',
+ * });
+ *
+ * const batchGetCommand = new BatchGet({
+ *   keys: [
+ *     { userId: 'user1' },
+ *     { userId: 'user2' },
+ *   ],
+ *   consistent: true,
+ * });
+ *
+ * const { items } = await batchGetCommand.execute(userEntity);
+ * ```
+ */
 export class BatchGet<Schema extends ZodObject>
   implements BaseCommand<BatchGetResult<Schema>, Schema>
 {

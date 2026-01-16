@@ -1,7 +1,7 @@
-import type { Condition } from '@/conditions/condition-types'
+import type { Condition } from '@/conditions'
 import type { DeleteConfig } from '@/commands/delete'
 import type { DynamoEntity } from '@/core/entity'
-import type { EntitySchema, TransactWriteOperation } from '@/core/core-types'
+import type { EntitySchema, TransactWriteOperation } from '@/core'
 import type {
   ItemCollectionMetrics,
   ReturnValuesOnConditionCheckFailure,
@@ -9,18 +9,61 @@ import type {
 import type { ZodObject } from 'zod/v4'
 import { DeleteCommand } from '@aws-sdk/lib-dynamodb'
 import { parseCondition } from '@/conditions/condition-parser'
-import type { BaseResult, BaseCommand, WriteTransactable } from '@/commands/base-command'
+import type { BaseResult, BaseCommand, WriteTransactable } from '@/commands'
 
+/**
+ * Configuration for the ConditionalDelete command.
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ */
 export type ConditionalDeleteConfig<Schema extends ZodObject> = DeleteConfig<Schema> & {
   condition: Condition
   returnValuesOnConditionCheckFailure?: ReturnValuesOnConditionCheckFailure
 }
 
+/**
+ * Result of the ConditionalDelete command.
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ */
 export type ConditionalDeleteResult<Schema extends ZodObject> = BaseResult & {
   deletedItem?: Partial<EntitySchema<Schema>> | undefined
   itemCollectionMetrics?: ItemCollectionMetrics
 }
 
+/**
+ * Command to remove an item with a condition expression.
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ *
+ * @example
+ * ```typescript
+ * import { DynamoTable, DynamoEntity, key, ConditionalDelete } from 'dynamo-document-builder';
+ *
+ * const table = new DynamoTable({
+ *   tableName: 'ExampleTable',
+ *   documentClient,
+ * });
+ *
+ * const userEntity = new DynamoEntity({
+ *   table,
+ *   schema: z.object({
+ *     userId: z.string(),
+ *     status: z.string(),
+ *   }),
+ *   partitionKey: user => key('USER', user.userId),
+ *   sortKey: () => 'METADATA',
+ * });
+ *
+ * const conditionalDeleteCommand = new ConditionalDelete({
+ *   key: { userId: 'user123' },
+ *   condition: { status: 'inactive' },
+ *   returnValues: 'ALL_OLD',
+ * });
+ *
+ * const { deletedItem } = await userEntity.send(conditionalDeleteCommand);
+ * ```
+ */
 export class ConditionalDelete<Schema extends ZodObject>
   implements BaseCommand<ConditionalDeleteResult<Schema>, Schema>, WriteTransactable<Schema>
 {

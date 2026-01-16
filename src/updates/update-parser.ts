@@ -1,5 +1,5 @@
 import { AttributeExpressionMap } from '@/attributes/attribute-map'
-import type { UpdateValues, UpdateExpression, ValueReference } from '@/updates/update-types'
+import type { UpdateValues, UpdateExpression, ValueReference } from '@/updates'
 import {
   $set,
   $remove,
@@ -44,11 +44,27 @@ function isUpdateExpression(value: unknown): value is UpdateExpression {
   )
 }
 
+/**
+ * The result object returned by the [`parseUpdate`](/api-reference/functions/parseupdate) function.
+ *
+ * @property updateExpression - The DynamoDB update expression string.
+ * @property attributeExpressionMap - The `AttributeExpressionMap` instance containing the attribute names and values used in the update expression.
+ */
 export type UpdateParserResult = {
   updateExpression: string
   attributeExpressionMap: AttributeExpressionMap
 }
 
+/**
+ * Parses an update object into a DynamoDB update expression string along with an attribute expression map.
+ *
+ * If the secondary `attributeExpressionMap` parameter is not provided, a new instance will be created.
+ * This allows for reusing an existing map when building complex expressions with other parser functions.
+ *
+ * @param update - The update object to parse.
+ * @param attributeExpressionMap - An optional `AttributeExpressionMap` instance to use for attribute names and values.
+ * @throws DocumentBuilderError if the update object is empty.
+ */
 export function parseUpdate(
   update: UpdateValues,
   attributeExpressionMap: AttributeExpressionMap = new AttributeExpressionMap(),

@@ -1,10 +1,10 @@
-import type { Condition } from '@/conditions/condition-types'
+import type { Condition } from '@/conditions'
 import type { DynamoEntity } from '@/core/entity'
-import type { EntitySchema } from '@/core/core-types'
+import type { EntitySchema } from '@/core'
 import type { Select } from '@aws-sdk/client-dynamodb'
 import type { ZodObject } from 'zod/v4'
 import { AttributeExpressionMap } from '@/attributes/attribute-map'
-import type { BaseCommand, BaseConfig, BasePaginatable, BaseResult } from '@/commands/base-command'
+import type { BaseCommand, BaseConfig, BasePaginatable, BaseResult } from '@/commands'
 import { SCAN_VALIDATION_CONCURRENCY } from '@/internal-constants'
 import {
   type NativeAttributeValue,
@@ -16,6 +16,11 @@ import {
 import { parseCondition } from '@/conditions/condition-parser'
 import pMap from 'p-map'
 
+/**
+ * Configuration for the Scan command.
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ */
 export type ScanConfig<Schema extends ZodObject> = BaseConfig & {
   indexName?: string
   filter?: Condition
@@ -29,6 +34,11 @@ export type ScanConfig<Schema extends ZodObject> = BaseConfig & {
   pageSize?: number
 }
 
+/**
+ * Result of the Scan command.
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ */
 export type ScanResult<Schema extends ZodObject> = BaseResult & {
   items: EntitySchema<Schema>[]
   count: number
@@ -36,6 +46,39 @@ export type ScanResult<Schema extends ZodObject> = BaseResult & {
   lastEvaluatedKey?: Partial<EntitySchema<Schema>> | undefined
 }
 
+/**
+ * Command to scan entire table or index (expensive operation).
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ *
+ * @example
+ * ```typescript
+ * import { DynamoTable, DynamoEntity, key, Scan } from 'dynamo-document-builder';
+ *
+ * const table = new DynamoTable({
+ *   tableName: 'ExampleTable',
+ *   documentClient,
+ * });
+ *
+ * const todoEntity = new DynamoEntity({
+ *   table,
+ *   schema: z.object({
+ *     userId: z.string(),
+ *     todoId: z.string(),
+ *     isComplete: z.boolean(),
+ *   }),
+ *   partitionKey: todo => key('USER', todo.userId),
+ *   sortKey: todo => key('TODO', todo.todoId),
+ * });
+ *
+ * const scanCommand = new Scan({
+ *   filter: { isComplete: false },
+ *   limit: 100,
+ * });
+ *
+ * const { items, scannedCount } = await todoEntity.send(scanCommand);
+ * ```
+ */
 export class Scan<Schema extends ZodObject>
   implements BaseCommand<ScanResult<Schema>, Schema>, BasePaginatable<ScanResult<Schema>, Schema>
 {
