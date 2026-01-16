@@ -1,6 +1,6 @@
-import type { Condition } from '@/conditions/condition-types'
+import type { Condition } from '@/conditions'
 import type { DynamoEntity } from '@/core/entity'
-import type { EntitySchema, TransactWriteOperation } from '@/core/core-types'
+import type { EntitySchema, TransactWriteOperation } from '@/core'
 import type {
   ItemCollectionMetrics,
   ReturnValuesOnConditionCheckFailure,
@@ -9,18 +9,62 @@ import type { PutConfig } from '@/commands/put'
 import type { ZodObject } from 'zod/v4'
 import { PutCommand } from '@aws-sdk/lib-dynamodb'
 import { parseCondition } from '@/conditions/condition-parser'
-import type { BaseResult, BaseCommand, WriteTransactable } from '@/commands/base-command'
+import type { BaseResult, BaseCommand, WriteTransactable } from '@/commands'
 
+/**
+ * Configuration for the ConditionalPut command.
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ */
 export type ConditionalPutConfig<Schema extends ZodObject> = PutConfig<Schema> & {
   condition: Condition
   returnValuesOnConditionCheckFailure?: ReturnValuesOnConditionCheckFailure
 }
 
+/**
+ * Result of the ConditionalPut command.
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ */
 export type ConditionalPutResult<Schema extends ZodObject> = BaseResult & {
   returnItem: EntitySchema<Schema> | undefined
   itemCollectionMetrics: ItemCollectionMetrics | undefined
 }
 
+/**
+ * Command to create or replace an item with a condition expression.
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ *
+ * @example
+ * ```typescript
+ * import { DynamoTable, DynamoEntity, key, ConditionalPut, notExists } from 'dynamo-document-builder';
+ *
+ * const table = new DynamoTable({
+ *   tableName: 'ExampleTable',
+ *   documentClient,
+ * });
+ *
+ * const userEntity = new DynamoEntity({
+ *   table,
+ *   schema: z.object({
+ *     userId: z.string(),
+ *     name: z.string(),
+ *     status: z.string(),
+ *   }),
+ *   partitionKey: user => key('USER', user.userId),
+ *   sortKey: () => 'METADATA',
+ * });
+ *
+ * const conditionalPutCommand = new ConditionalPut({
+ *   item: { userId: 'user123', name: 'John', status: 'active' },
+ *   condition: { status: 'draft' },
+ *   returnValuesOnConditionCheckFailure: 'ALL_OLD',
+ * });
+ *
+ * await userEntity.send(conditionalPutCommand);
+ * ```
+ */
 export class ConditionalPut<Schema extends ZodObject>
   implements BaseCommand<ConditionalPutResult<Schema>, Schema>, WriteTransactable<Schema>
 {

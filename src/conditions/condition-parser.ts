@@ -15,7 +15,7 @@ import type {
   SizeExpression,
   TypeCheckExpression,
   ValueExpression,
-} from '@/conditions/condition-types'
+} from '@/conditions'
 import {
   $beginsWith,
   $between,

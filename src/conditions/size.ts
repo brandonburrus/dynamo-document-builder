@@ -1,9 +1,9 @@
 import { $size } from '@/conditions/condition-symbols'
-import type {
-  ComparisonExpressionTemplate,
-  SizeConditionExpressionTemplate,
-} from '@/conditions/condition-types'
+import type { ComparisonExpressionTemplate, SizeConditionExpressionTemplate } from '@/conditions'
 
+/**
+ * Creates a SIZE condition expression template.
+ */
 export function size(
   valueOrComparison: number | ComparisonExpressionTemplate,
 ): SizeConditionExpressionTemplate {

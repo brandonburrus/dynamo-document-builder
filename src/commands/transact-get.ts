@@ -1,19 +1,64 @@
 import { TransactGetCommand } from '@aws-sdk/lib-dynamodb'
 import type { DynamoEntity } from '@/core/entity'
-import type { BaseConfig, BaseCommand, BaseResult } from '@/commands/base-command'
+import type { BaseConfig, BaseCommand, BaseResult } from '@/commands'
 import type { ZodObject } from 'zod/v4'
-import type { EntitySchema } from '@/core/core-types'
+import type { EntitySchema } from '@/core'
 import { TRANSACTION_GET_VALIDATION_CONCURRENCY } from '@/internal-constants'
 import pMap from 'p-map'
 
+/**
+ * Configuration for the TransactGet command.
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ */
 export type TransactGetConfig<Schema extends ZodObject> = BaseConfig & {
   keys: Array<Partial<EntitySchema<Schema>>>
 }
 
+/**
+ * Result of the TransactGet command.
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ */
 export type TransactGetResult<Schema extends ZodObject> = BaseResult & {
   items: Array<EntitySchema<Schema> | undefined>
 }
 
+/**
+ * Command to perform a transactional read of multiple items (all-or-nothing, strongly consistent).
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ *
+ * @example
+ * ```typescript
+ * import { DynamoTable, DynamoEntity, key, TransactGet } from 'dynamo-document-builder';
+ *
+ * const table = new DynamoTable({
+ *   tableName: 'ExampleTable',
+ *   documentClient,
+ * });
+ *
+ * const userEntity = new DynamoEntity({
+ *   table,
+ *   schema: z.object({
+ *     userId: z.string(),
+ *     name: z.string(),
+ *   }),
+ *   partitionKey: user => key('USER', user.userId),
+ *   sortKey: () => 'METADATA',
+ * });
+ *
+ * const transactGetCommand = new TransactGet({
+ *   keys: [
+ *     { userId: 'user1' },
+ *     { userId: 'user2' },
+ *   ],
+ * });
+ *
+ * const { items } = await userEntity.send(transactGetCommand);
+ * // items array has same order as keys, undefined if not found
+ * ```
+ */
 export class TransactGet<Schema extends ZodObject>
   implements BaseCommand<TransactGetResult<Schema>, Schema>
 {

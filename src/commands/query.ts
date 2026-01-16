@@ -1,9 +1,9 @@
-import type { Condition } from '@/conditions/condition-types'
+import type { Condition } from '@/conditions'
 import type { DynamoEntity, EntityKeyInput } from '@/core/entity'
-import type { EntitySchema } from '@/core/core-types'
+import type { EntitySchema } from '@/core'
 import type { Select } from '@aws-sdk/client-dynamodb'
 import type { ZodObject } from 'zod/v4'
-import type { BaseConfig, BaseCommand, BasePaginatable, BaseResult } from '@/commands/base-command'
+import type { BaseConfig, BaseCommand, BasePaginatable, BaseResult } from '@/commands'
 import { AttributeExpressionMap } from '@/attributes/attribute-map'
 import { QUERY_VALIDATION_CONCURRENCY } from '@/internal-constants'
 import {
@@ -17,6 +17,11 @@ import { parseCondition } from '@/conditions'
 import { DocumentBuilderError } from '@/errors'
 import pMap from 'p-map'
 
+/**
+ * Configuration for the Query command.
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ */
 export type QueryConfig<Schema extends ZodObject> = BaseConfig &
   EntityKeyInput<EntitySchema<Schema>> & {
     sortKeyCondition?: Condition
@@ -30,6 +35,11 @@ export type QueryConfig<Schema extends ZodObject> = BaseConfig &
     pageSize?: number
   }
 
+/**
+ * Result of the Query command.
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ */
 export type QueryResult<Schema extends ZodObject> = BaseResult & {
   items: EntitySchema<Schema>[]
   count: number
@@ -37,6 +47,41 @@ export type QueryResult<Schema extends ZodObject> = BaseResult & {
   lastEvaluatedKey?: Partial<EntitySchema<Schema>> | undefined
 }
 
+/**
+ * Command to retrieve multiple items by partition key with optional sort key conditions.
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ *
+ * @example
+ * ```typescript
+ * import { DynamoTable, DynamoEntity, key, Query, beginsWith } from 'dynamo-document-builder';
+ *
+ * const table = new DynamoTable({
+ *   tableName: 'ExampleTable',
+ *   documentClient,
+ * });
+ *
+ * const todoEntity = new DynamoEntity({
+ *   table,
+ *   schema: z.object({
+ *     userId: z.string(),
+ *     todoId: z.string(),
+ *     title: z.string(),
+ *     isComplete: z.boolean(),
+ *   }),
+ *   partitionKey: todo => key('USER', todo.userId),
+ *   sortKey: todo => key('TODO', todo.todoId),
+ * });
+ *
+ * const queryCommand = new Query({
+ *   key: { userId: 'user123' },
+ *   sortKeyCondition: { SK: beginsWith('TODO#') },
+ *   limit: 10,
+ * });
+ *
+ * const { items, count } = await todoEntity.send(queryCommand);
+ * ```
+ */
 export class Query<Schema extends ZodObject>
   implements BaseCommand<QueryResult<Schema>, Schema>, BasePaginatable<QueryResult<Schema>, Schema>
 {

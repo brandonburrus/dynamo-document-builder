@@ -1,12 +1,29 @@
 import { DocumentBuilderError } from '@/errors'
-import type { IndexName } from './core-types'
+import type { IndexName } from '@/core'
 
+/**
+ * Represents a value that can be used as a DynamoDB primary key.
+ */
 export type DynamoKeyableValue = string | number | Buffer
+
+/**
+ * Represents a value that can be used as a DynamoDB secondary index key.
+ */
 export type DynamoIndexKeyableValue = string | number | Buffer | undefined
 
+/**
+ * A function that builds a DynamoDB primary key from an item.
+ */
 export type DynamoKeyBuilder<Item> = (item: Item) => DynamoKeyableValue
+
+/**
+ * A function that builds a DynamoDB secondary index key from an item.
+ */
 export type DynamoIndexKeyBuilder<Item> = (item: Item) => DynamoIndexKeyableValue
 
+/**
+ * A mapping type of global secondary index names to their key builders.
+ */
 export type GlobalSecondaryIndexKeyBuilders<Item> = Record<
   IndexName,
   {
@@ -15,6 +32,9 @@ export type GlobalSecondaryIndexKeyBuilders<Item> = Record<
   }
 >
 
+/**
+ * A mapping type of local secondary index names to their key builders.
+ */
 export type LocalSecondaryIndexKeyBuilders<Item> = Record<
   IndexName,
   {
@@ -22,11 +42,18 @@ export type LocalSecondaryIndexKeyBuilders<Item> = Record<
   }
 >
 
+/**
+ * Record type representing a DynamoDB primary key.
+ */
 export type DynamoKey = Record<string, DynamoKeyableValue>
+
+/**
+ * Record type representing a DynamoDB secondary index key.
+ */
 export type DynamoIndexKey = Record<string, DynamoIndexKeyableValue>
 
 /**
- * Builds a DynamoDB key from the given parts by concatenating them with a '#' separator.
+ * Builds a DynamoDB key from the given parts by concatenating them with a `#` separator.
  * At least one part must be provided, or a DocumentBuilderError will be thrown.
  *
  * @param parts - The parts to combine into a key.

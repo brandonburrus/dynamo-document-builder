@@ -1,13 +1,13 @@
 import type { DynamoEntity } from '@/core/entity'
-import type { EntitySchema } from '@/core/core-types'
-import type { Projection } from '@/projections/projection-types'
+import type { EntitySchema } from '@/core'
+import type { Projection } from '@/projections'
 import type { QueryConfig } from '@/commands/query'
 import type { ZodObject } from 'zod/v4'
 import { AttributeExpressionMap } from '@/attributes/attribute-map'
 import { PROJECTED_QUERY_VALIDATION_CONCURRENCY } from '@/internal-constants'
 import { parseCondition } from '@/conditions/condition-parser'
 import { parseProjection } from '@/projections/projection-parser'
-import type { BaseResult, BaseCommand, BasePaginatable } from '@/commands/base-command'
+import type { BaseResult, BaseCommand, BasePaginatable } from '@/commands'
 import { DocumentBuilderError } from '@/errors'
 import {
   type NativeAttributeValue,
@@ -18,6 +18,12 @@ import {
 } from '@aws-sdk/lib-dynamodb'
 import pMap from 'p-map'
 
+/**
+ * Configuration for the ProjectedQuery command.
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ * @template ProjectionSchema - The Zod schema defining the structure of the projected attributes.
+ */
 export type ProjectedQueryConfig<
   Schema extends ZodObject,
   ProjectionSchema extends ZodObject,
@@ -26,6 +32,12 @@ export type ProjectedQueryConfig<
   projectionSchema: ProjectionSchema
 }
 
+/**
+ * Result of the ProjectedQuery command.
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ * @template ProjectionSchema - The Zod schema defining the structure of the projected attributes.
+ */
 export type ProjectedQueryResult<
   Schema extends ZodObject,
   ProjectionSchema extends ZodObject,
@@ -36,6 +48,47 @@ export type ProjectedQueryResult<
   lastEvaluatedKey?: Partial<EntitySchema<Schema>> | undefined
 }
 
+/**
+ * Command to retrieve specific attributes of multiple items by partition key with optional sort key conditions.
+ *
+ * @template Schema - The Zod schema defining the structure of the entity.
+ * @template ProjectionSchema - The Zod schema defining the structure of the projected attributes.
+ *
+ * @example
+ * ```typescript
+ * import { DynamoTable, DynamoEntity, key, ProjectedQuery, beginsWith } from 'dynamo-document-builder';
+ *
+ * const table = new DynamoTable({
+ *   tableName: 'ExampleTable',
+ *   documentClient,
+ * });
+ *
+ * const todoEntity = new DynamoEntity({
+ *   table,
+ *   schema: z.object({
+ *     userId: z.string(),
+ *     todoId: z.string(),
+ *     title: z.string(),
+ *     description: z.string(),
+ *     isComplete: z.boolean(),
+ *   }),
+ *   partitionKey: todo => key('USER', todo.userId),
+ *   sortKey: todo => key('TODO', todo.todoId),
+ * });
+ *
+ * const projectedQueryCommand = new ProjectedQuery({
+ *   key: { userId: 'user123' },
+ *   projection: ['title', 'isComplete'],
+ *   projectionSchema: z.object({
+ *     title: z.string(),
+ *     isComplete: z.boolean(),
+ *   }),
+ *   limit: 10,
+ * });
+ *
+ * const { items, count } = await todoEntity.send(projectedQueryCommand);
+ * ```
+ */
 export class ProjectedQuery<Schema extends ZodObject, ProjectedSchema extends ZodObject>
   implements
     BaseCommand<ProjectedQueryResult<Schema, ProjectedSchema>, Schema>,
