@@ -311,9 +311,106 @@ if (items[0]) {
 }
 ```
 
-### TransactWrite
+### TableBatchWrite
 
-Atomic multi-item write transaction:
+Put and/or delete multiple items across multiple entity types in a single request:
+
+```typescript
+import { TableBatchWrite, BatchWrite } from 'dynamo-document-builder';
+
+const { unprocessedPuts, unprocessedDeletes } = await myTable.send(
+  new TableBatchWrite({
+    writes: [
+      userEntity.prepare(new BatchWrite({
+        items: [
+          { id: '1', name: 'Alice', email: 'alice@example.com' },
+          { id: '2', name: 'Bob', email: 'bob@example.com' },
+        ],
+      })),
+      orderEntity.prepare(new BatchWrite({
+        items: [{ orderId: '100', userId: '1', total: 99.99 }],
+        deletes: [{ orderId: '99' }],
+      })),
+    ],
+  }),
+);
+
+// Tuple results typed per entity
+const [userUnprocessedPuts, orderUnprocessedPuts] = unprocessedPuts;
+```
+
+### TableBatchGet
+
+Retrieve multiple items across multiple entity types in a single request:
+
+```typescript
+import { TableBatchGet, BatchGet } from 'dynamo-document-builder';
+
+const { items } = await myTable.send(
+  new TableBatchGet({
+    gets: [
+      userEntity.prepare(new BatchGet({
+        keys: [{ id: '1', email: 'alice@example.com' }],
+      })),
+      orderEntity.prepare(new BatchGet({
+        keys: [{ orderId: '100' }, { orderId: '101' }],
+      })),
+    ],
+  }),
+);
+
+// Tuple results typed per entity
+const [users, orders] = items;
+// users: User[]
+// orders: Order[]
+```
+
+### TableTransactWrite
+
+Atomic multi-entity write transaction across multiple entity types:
+
+```typescript
+import { TableTransactWrite } from 'dynamo-document-builder';
+import { Put, Update, Delete } from 'dynamo-document-builder';
+
+await myTable.send(
+  new TableTransactWrite({
+    transactions: [
+      userEntity.prepare([
+        new Put({ item: { id: '1', name: 'Alice', email: 'alice@example.com' } }),
+      ]),
+      orderEntity.prepare([
+        new Update({ key: { orderId: '100' }, updates: { status: 'shipped' } }),
+        new Delete({ key: { orderId: '99' } }),
+      ]),
+    ],
+  }),
+);
+```
+
+### TableTransactGet
+
+Transactional read across multiple entity types (all-or-nothing, strongly consistent):
+
+```typescript
+import { TableTransactGet, TransactGet } from 'dynamo-document-builder';
+
+const { items } = await myTable.send(
+  new TableTransactGet({
+    gets: [
+      userEntity.prepare(new TransactGet({
+        keys: [{ id: '1', email: 'alice@example.com' }],
+      })),
+      orderEntity.prepare(new TransactGet({
+        keys: [{ orderId: '100' }, { orderId: '101' }],
+      })),
+    ],
+  }),
+);
+
+// Tuple results typed per entity, undefined if not found
+const [users, orders] = items;
+```
 
 ```typescript
 import { TransactWrite, ConditionCheck } from 'dynamo-document-builder';

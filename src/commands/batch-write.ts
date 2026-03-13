@@ -1,4 +1,4 @@
-import type { BaseConfig, BaseCommand, BaseResult } from '@/commands'
+import type { BaseConfig, BaseCommand, BaseResult, BatchWritePreparable } from '@/commands'
 import type { DynamoEntity } from '@/core/entity'
 import type { EntitySchema } from '@/core'
 import type { ItemCollectionMetrics, ReturnItemCollectionMetrics } from '@aws-sdk/client-dynamodb'
@@ -68,12 +68,20 @@ export type BatchWriteResult<Schema extends ZodObject> = BaseResult & {
  * ```
  */
 export class BatchWrite<Schema extends ZodObject>
-  implements BaseCommand<BatchWriteResult<Schema>, Schema>
+  implements BaseCommand<BatchWriteResult<Schema>, Schema>, BatchWritePreparable<Schema>
 {
   #config: BatchWriteConfig<Schema>
 
   constructor(config: BatchWriteConfig<Schema>) {
     this.#config = config
+  }
+
+  public get items(): Array<EntitySchema<Schema>> | undefined {
+    return this.#config.items
+  }
+
+  public get deletes(): Array<Partial<EntitySchema<Schema>>> | undefined {
+    return this.#config.deletes
   }
 
   public async buildPutRequests(entity: DynamoEntity<Schema>) {

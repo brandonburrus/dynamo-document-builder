@@ -1,6 +1,6 @@
 import { TransactGetCommand } from '@aws-sdk/lib-dynamodb'
 import type { DynamoEntity } from '@/core/entity'
-import type { BaseConfig, BaseCommand, BaseResult } from '@/commands'
+import type { BaseConfig, BaseCommand, BaseResult, GetTransactable } from '@/commands'
 import type { ZodObject } from 'zod/v4'
 import type { EntitySchema } from '@/core'
 import { TRANSACTION_GET_VALIDATION_CONCURRENCY } from '@/internal-constants'
@@ -60,12 +60,16 @@ export type TransactGetResult<Schema extends ZodObject> = BaseResult & {
  * ```
  */
 export class TransactGet<Schema extends ZodObject>
-  implements BaseCommand<TransactGetResult<Schema>, Schema>
+  implements BaseCommand<TransactGetResult<Schema>, Schema>, GetTransactable<Schema>
 {
   #config: TransactGetConfig<Schema>
 
   constructor(config: TransactGetConfig<Schema>) {
     this.#config = config
+  }
+
+  public get keys(): Array<Partial<EntitySchema<Schema>>> {
+    return this.#config.keys
   }
 
   public async execute(entity: DynamoEntity<Schema>): Promise<TransactGetResult<Schema>> {
