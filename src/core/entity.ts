@@ -1,4 +1,15 @@
-import type { BaseCommand, BasePaginatable } from '@/commands'
+import type {
+  BaseCommand,
+  BasePaginatable,
+  WriteTransactable,
+  GetTransactable,
+  PreparedWriteTransaction,
+  PreparedGetTransaction,
+  BatchWritePreparable,
+  BatchGetPreparable,
+  PreparedBatchWrite,
+  PreparedBatchGet,
+} from '@/commands'
 import type {
   DynamoKeyableValue,
   DynamoKeyBuilder,
@@ -268,5 +279,164 @@ export class DynamoEntity<Schema extends ZodObject> {
     for await (const page of paginatable.executePaginated(this)) {
       yield page
     }
+  }
+
+  /**
+   * Prepares a set of write operations bound to this entity for use in a table-level
+   * `TableTransactWrite` command.
+   */
+  public prepare(writes: WriteTransactable<Schema>[]): PreparedWriteTransaction<Schema>
+
+  /**
+   * Prepares a batch write command bound to this entity for use in a table-level
+   * `TableBatchWrite` command.
+   */
+  public prepare(batchWrite: BatchWritePreparable<Schema>): PreparedBatchWrite<Schema>
+
+  /**
+   * Prepares a batch get command bound to this entity for use in a table-level
+   * `TableBatchGet` command.
+   */
+  public prepare(batchGet: BatchGetPreparable<Schema>): PreparedBatchGet<Schema>
+
+  /**
+   * Prepares a get command bound to this entity for use in a table-level
+   * `TableTransactGet` command.
+   */
+  public prepare(get: GetTransactable<Schema>): PreparedGetTransaction<Schema>
+
+  public prepare(
+    input:
+      | WriteTransactable<Schema>[]
+      | GetTransactable<Schema>
+      | BatchWritePreparable<Schema>
+      | BatchGetPreparable<Schema>,
+  ):
+    | PreparedWriteTransaction<Schema>
+    | PreparedGetTransaction<Schema>
+    | PreparedBatchWrite<Schema>
+    | PreparedBatchGet<Schema> {
+    // WriteTransactable[] — array of transact write operations
+    if (Array.isArray(input)) {
+      return {
+        entity: this,
+        writes: input,
+      } satisfies PreparedWriteTransaction<Schema>
+    }
+
+    // BatchWritePreparable — has items and/or deletes, no keys
+    if ('items' in input || ('deletes' in input && !('keys' in input))) {
+      const batchWrite = input as BatchWritePreparable<Schema>
+      return {
+        entity: this,
+        buildRequests: async (skipValidation: boolean, abortSignal?: AbortSignal) => {
+          const putRequests: Array<{ PutRequest: { Item: Record<string, unknown> } }> = []
+          const deleteRequests: Array<{ DeleteRequest: { Key: DynamoKey } }> = []
+
+          if (batchWrite.items && batchWrite.items.length > 0) {
+            for (const item of batchWrite.items) {
+              if (skipValidation) {
+                putRequests.push({
+                  PutRequest: {
+                    Item: {
+                      ...item,
+                      ...this.buildAllKeys(item),
+                    },
+                  },
+                })
+              } else {
+                const encodedData = await this.#schema.encodeAsync(item)
+                putRequests.push({
+                  PutRequest: {
+                    Item: {
+                      ...encodedData,
+                      ...this.buildAllKeys(item),
+                    },
+                  },
+                })
+              }
+              void abortSignal // consumed by pMap callers higher up if needed
+            }
+          }
+
+          if (batchWrite.deletes && batchWrite.deletes.length > 0) {
+            for (const deleteKey of batchWrite.deletes) {
+              deleteRequests.push({
+                DeleteRequest: {
+                  Key: this.buildPrimaryKey(deleteKey),
+                },
+              })
+            }
+          }
+
+          return [...putRequests, ...deleteRequests]
+        },
+        matchUnprocessedPut: (item: Record<string, unknown>) => {
+          if (!batchWrite.items) return undefined
+          const itemPrimaryKey = this.buildPrimaryKey(item as Partial<EntitySchema<Schema>>)
+          return batchWrite.items.find(original => {
+            const originalKey = this.buildPrimaryKey(original)
+            return JSON.stringify(originalKey) === JSON.stringify(itemPrimaryKey)
+          })
+        },
+        matchUnprocessedDelete: (key: Record<string, unknown>) => {
+          if (!batchWrite.deletes) return undefined
+          const keyStr = JSON.stringify(key)
+          return batchWrite.deletes.find(original => {
+            const originalKey = this.buildPrimaryKey(original)
+            return JSON.stringify(originalKey) === keyStr
+          })
+        },
+      } satisfies PreparedBatchWrite<Schema>
+    }
+
+    // BatchGetPreparable — has keys as entity partials plus consistent flag
+    if ('consistent' in input) {
+      const batchGet = input as BatchGetPreparable<Schema>
+      const builtKeys = batchGet.keys.map(k => this.buildPrimaryKey(k))
+      return {
+        entity: this,
+        keys: builtKeys,
+        consistent: batchGet.consistent ?? false,
+        matchItem: (item: Record<string, unknown>) => {
+          const itemKey = this.buildPrimaryKey(item as Partial<EntitySchema<Schema>>)
+          const itemKeyStr = JSON.stringify(itemKey)
+          return builtKeys.some(k => JSON.stringify(k) === itemKeyStr)
+        },
+        parseResults: async (items: unknown[], skipValidation: boolean) => {
+          return await Promise.all(
+            items.map(async item => {
+              if (skipValidation) return item as EntitySchema<Schema>
+              return await this.#schema.parseAsync(item)
+            }),
+          )
+        },
+        matchUnprocessedKey: (key: Record<string, unknown>) => {
+          const keyStr = JSON.stringify(key)
+          return batchGet.keys.find(original => {
+            const originalKey = this.buildPrimaryKey(original)
+            return JSON.stringify(originalKey) === keyStr
+          })
+        },
+      } satisfies PreparedBatchGet<Schema>
+    }
+
+    // GetTransactable — has keys as entity partials, no consistent flag
+    return {
+      entity: this,
+      keys: (input as GetTransactable<Schema>).keys.map(key => ({
+        TableName: this.#table.tableName,
+        Key: this.buildPrimaryKey(key),
+      })),
+      parseResults: async (items: unknown[], skipValidation: boolean) => {
+        return await Promise.all(
+          items.map(async item => {
+            if (item === undefined || item === null) return undefined
+            if (skipValidation) return item as EntitySchema<Schema>
+            return await this.#schema.parseAsync(item)
+          }),
+        )
+      },
+    } satisfies PreparedGetTransaction<Schema>
   }
 }

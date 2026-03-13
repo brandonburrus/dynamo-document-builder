@@ -1,5 +1,6 @@
 import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb'
 import type { NamedGlobalSecondaryIndexKeyNames, NamedLocalSecondaryIndexKeyNames } from '@/core'
+import type { TableCommand } from '@/commands'
 
 /**
  * Configuration type for creating a DynamoTable.
@@ -91,5 +92,12 @@ export class DynamoTable {
    */
   public get localSecondaryIndexKeyNames(): NamedLocalSecondaryIndexKeyNames {
     return this.#lsi
+  }
+
+  /**
+   * Sends a table-level command to be executed against this table.
+   */
+  public async send<CommandOutput>(command: TableCommand<CommandOutput>): Promise<CommandOutput> {
+    return await command.execute(this)
   }
 }

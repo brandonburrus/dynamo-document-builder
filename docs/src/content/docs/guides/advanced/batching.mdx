@@ -1,6 +1,6 @@
 ---
 title: Batching
-description: A guide on batch operations using Dynamo Documnt Builder.
+description: A guide on batch operations using Dynamo Document Builder.
 ---
 
 import ConfigTable from '../../../../components/ConfigTable.astro';
@@ -95,6 +95,176 @@ Both `BatchGet` and `BatchWrite` commands may return unprocessed keys or items i
 <Aside type='note' title='Exponential Backoff'>
 When retrying unprocessed items, DynamoDB strongly recommends using exponential backoff with jitter to avoid overwhelming the service.
 </Aside>
+
+## Multi-Entity Batching
+
+Use the `TableBatchWrite` and `TableBatchGet` commands to perform batch operations across **multiple entity types** in a single DynamoDB request. These are the Document Builder table-level commands executed via `table.send()`.
+
+<Aside type='note' title='Single-Entity vs Multi-Entity Batching'>
+The `BatchWrite` and `BatchGet` commands operate on a **single entity type** and are executed via `entity.send()`. When you need to batch across **multiple entity types** in one DynamoDB call, use `TableBatchWrite` and `TableBatchGet` with `table.send()` instead.
+</Aside>
+
+### Preparing Entities
+
+Before passing entity operations to a table-level command, use `entity.prepare()` to bind each batch command to its entity. This returns a prepared group that carries the entity's schema, key builders, and the requested operation.
+
+```ts
+// Prepare a batch write for users
+const userWrites = userEntity.prepare(new BatchWrite({
+  items: [
+    { userId: 'u1', name: 'Alice', email: 'alice@example.com' },
+    { userId: 'u2', name: 'Bob', email: 'bob@example.com' },
+  ],
+  deletes: [
+    { userId: 'u3', email: 'charlie@example.com' },
+  ],
+}));
+
+// Prepare a batch get for orders
+const orderGets = orderEntity.prepare(new BatchGet({
+  keys: [{ orderId: 'o1' }, { orderId: 'o2' }],
+}));
+```
+
+### Multi-Entity Batch Writes
+
+Pass prepared write groups to `TableBatchWrite` and execute via `table.send()`:
+
+```ts
+const { unprocessedPuts, unprocessedDeletes } = await myTable.send(
+  new TableBatchWrite({
+    writes: [
+      userEntity.prepare(new BatchWrite({
+        items: [
+          { userId: 'u1', name: 'Alice', email: 'alice@example.com' },
+          { userId: 'u2', name: 'Bob', email: 'bob@example.com' },
+        ],
+      })),
+      orderEntity.prepare(new BatchWrite({
+        items: [{ orderId: 'o1', userId: 'u1', total: 99.99, status: 'pending' }],
+        deletes: [{ orderId: 'o0' }],
+      })),
+    ],
+  }),
+);
+```
+
+The result fields `unprocessedPuts` and `unprocessedDeletes` are **typed tuples** that match the order of the input `writes` array. This means each index is typed to its corresponding entity:
+
+```ts
+const [userUnprocessedPuts, orderUnprocessedPuts] = unprocessedPuts;
+// userUnprocessedPuts: User[] | undefined
+// orderUnprocessedPuts: Order[] | undefined
+
+const [userUnprocessedDeletes, orderUnprocessedDeletes] = unprocessedDeletes;
+// userUnprocessedDeletes: Partial<User>[] | undefined
+// orderUnprocessedDeletes: Partial<Order>[] | undefined
+```
+
+### Multi-Entity Batch Gets
+
+Pass prepared get groups to `TableBatchGet` and execute via `table.send()`:
+
+```ts
+const { items, unprocessedKeys } = await myTable.send(
+  new TableBatchGet({
+    gets: [
+      userEntity.prepare(new BatchGet({
+        keys: [
+          { userId: 'u1', email: 'alice@example.com' },
+          { userId: 'u2', email: 'bob@example.com' },
+        ],
+      })),
+      orderEntity.prepare(new BatchGet({
+        keys: [{ orderId: 'o1' }, { orderId: 'o2' }],
+      })),
+    ],
+  }),
+);
+
+const [users, orders] = items;
+// users: User[]
+// orders: Order[]
+```
+
+#### Consistent Reads
+
+You can request strongly consistent reads either at the **command level** or on individual **entity groups**.
+
+**Command-level `consistent` (recommended)** — set it once on `TableBatchGet` to apply to the entire request. This completely overrides any `consistent` setting on individual groups:
+
+```ts
+const { items } = await myTable.send(
+  new TableBatchGet({
+    consistent: true, // Forces ConsistentRead: true for all groups, regardless of group-level settings
+    gets: [
+      userEntity.prepare(new BatchGet({
+        keys: [{ userId: 'u1', email: 'alice@example.com' }],
+      })),
+      orderEntity.prepare(new BatchGet({
+        keys: [{ orderId: 'o1' }],
+      })),
+    ],
+  }),
+);
+```
+
+**Group-level `consistent`** — when `consistent` is not set on the command, set it on individual entity groups. Because DynamoDB requires a single consistent-read setting per table in a batch request, if **any** group requests consistency, the entire batch request will use `ConsistentRead: true`.
+
+```ts
+const { items } = await myTable.send(
+  new TableBatchGet({
+    gets: [
+      userEntity.prepare(new BatchGet({
+        keys: [{ userId: 'u1', email: 'alice@example.com' }],
+        consistent: true, // Makes the entire batch request consistent
+      })),
+      orderEntity.prepare(new BatchGet({
+        keys: [{ orderId: 'o1' }],
+      })),
+    ],
+  }),
+);
+```
+
+<Aside type='caution' title='Consistent Read Cost'>
+Strongly consistent reads consume twice the read capacity units of eventually consistent reads. Use them only when your application requires up-to-the-moment accuracy.
+</Aside>
+
+### Table Validation
+
+All entity groups in a `TableBatchWrite` or `TableBatchGet` must belong to the same table that `table.send()` is called on. If any entity references a different table, a `DocumentBuilderError` is thrown at runtime before any DynamoDB request is made.
+
+```ts
+// This will throw a DocumentBuilderError at runtime
+await tableA.send(new TableBatchGet({
+  gets: [
+    entityOnTableA.prepare(new BatchGet({ keys: [...] })),
+    entityOnTableB.prepare(new BatchGet({ keys: [...] })), // ❌ Wrong table
+  ],
+}));
+```
+
+### Retrying Unprocessed Items
+
+If DynamoDB cannot process all items due to throughput limits, unprocessed items are returned **mapped back to original domain objects** — not raw DynamoDB key-decorated items. You can pass them directly into a subsequent batch operation for retry.
+
+```ts
+const { unprocessedPuts, unprocessedDeletes, unprocessedKeys } = await myTable.send(...);
+
+// Retry unprocessed puts from index 0 (users)
+const [userUnprocessedPuts] = unprocessedPuts;
+if (userUnprocessedPuts?.length) {
+  await sleep(exponentialBackoff());
+  await myTable.send(new TableBatchWrite({
+    writes: [
+      userEntity.prepare(new BatchWrite({ items: userUnprocessedPuts })),
+    ],
+  }));
+}
+```
+
+---
 
 ## Batch Get Command Config
 
@@ -254,12 +424,116 @@ The `BatchWrite` command returns the following result:
   </PropTableEntry>
 </ResultTable>
 
+## TableBatchWrite Command Config
+
+The `TableBatchWrite` command expects the following input config:
+
+```ts
+{
+  writes: PreparedBatchWrite[];
+  returnItemCollectionMetrics?: ReturnItemCollectionMetrics;
+  skipValidation?: boolean;
+  timeoutMs?: number;
+  abortController?: AbortController;
+  returnConsumedCapacity?: ReturnConsumedCapacity;
+}
+```
+
+<ConfigTable>
+  <PropTableEntry name='writes' type='PreparedBatchWrite[]' required>
+    An array of prepared batch write groups, each created via `entity.prepare(new BatchWrite({ ... }))`. All entities must belong to the same table.
+  </PropTableEntry>
+  <PropTableEntry name='returnItemCollectionMetrics' type='ReturnItemCollectionMetrics'>
+    Determines whether item collection metrics are returned.
+    Valid values are `SIZE` and `NONE`.
+  </PropTableEntry>
+</ConfigTable>
+
+## TableBatchWrite Command Result
+
+The `TableBatchWrite` command returns the following result:
+
+```ts
+{
+  unprocessedPuts: Array<Schema[] | undefined>;    // tuple, one entry per write group
+  unprocessedDeletes: Array<Partial<Schema>[] | undefined>; // tuple, one entry per write group
+  itemCollectionMetrics?: ItemCollectionMetrics;
+  responseMetadata?: ResponseMetadata;
+  consumedCapacity?: ConsumedCapacity;
+}
+```
+
+<ResultTable>
+  <PropTableEntry name='unprocessedPuts' type='Array&lt;Schema[] | undefined&gt;'>
+    A tuple (one entry per write group in input order) of put items that were not processed due to throughput limits.
+    `undefined` for a given group means no unprocessed puts for that entity.
+  </PropTableEntry>
+  <PropTableEntry name='unprocessedDeletes' type='Array&lt;Partial&lt;Schema&gt;[] | undefined&gt;'>
+    A tuple (one entry per write group in input order) of delete keys that were not processed due to throughput limits.
+    `undefined` for a given group means no unprocessed deletes for that entity.
+  </PropTableEntry>
+  <PropTableEntry name='itemCollectionMetrics?' type='ItemCollectionMetrics'>
+    Information about item collection metrics, if requested via `returnItemCollectionMetrics`.
+  </PropTableEntry>
+</ResultTable>
+
+## TableBatchGet Command Config
+
+The `TableBatchGet` command expects the following input config:
+
+```ts
+{
+  gets: PreparedBatchGet[];
+  consistent?: boolean;
+  skipValidation?: boolean;
+  timeoutMs?: number;
+  abortController?: AbortController;
+  returnConsumedCapacity?: ReturnConsumedCapacity;
+}
+```
+
+<ConfigTable>
+  <PropTableEntry name='gets' type='PreparedBatchGet[]' required>
+    An array of prepared batch get groups, each created via `entity.prepare(new BatchGet({ ... }))`. All entities must belong to the same table.
+  </PropTableEntry>
+  <PropTableEntry name='consistent' type='boolean'>
+    When set, overrides the `consistent` setting on all individual entity groups. `true` forces strongly consistent reads for the entire request; `false` forces eventually consistent reads even if a group sets `consistent: true`. When omitted, falls back to per-group logic: if any group sets `consistent: true`, the entire request uses `ConsistentRead: true`.
+  </PropTableEntry>
+</ConfigTable>
+
+## TableBatchGet Command Result
+
+The `TableBatchGet` command returns the following result:
+
+```ts
+{
+  items: Array<Schema[]>;                          // tuple, one entry per get group
+  unprocessedKeys: Array<Partial<Schema>[] | undefined>; // tuple, one entry per get group
+  responseMetadata?: ResponseMetadata;
+  consumedCapacity?: ConsumedCapacity;
+}
+```
+
+<ResultTable>
+  <PropTableEntry name='items' type='Array&lt;Schema[]&gt;'>
+    A tuple (one entry per get group in input order) of retrieved items for each entity.
+    Each group's items are validated against that entity's schema.
+  </PropTableEntry>
+  <PropTableEntry name='unprocessedKeys' type='Array&lt;Partial&lt;Schema&gt;[] | undefined&gt;'>
+    A tuple (one entry per get group in input order) of keys that were not processed due to throughput limits.
+    `undefined` for a given group means no unprocessed keys for that entity.
+    These keys can be used in a subsequent batch get request.
+  </PropTableEntry>
+</ResultTable>
+
 ## Tree-shakable Imports
 
 ```ts
 import { BatchGet } from 'dynamo-document-builder/commands/batch-get';
 import { BatchProjectedGet } from 'dynamo-document-builder/commands/batch-projected-get';
 import { BatchWrite } from 'dynamo-document-builder/commands/batch-write';
+import { TableBatchWrite } from 'dynamo-document-builder/commands/table-batch-write';
+import { TableBatchGet } from 'dynamo-document-builder/commands/table-batch-get';
 ```
 
 ## API Reference
@@ -273,3 +547,9 @@ import { BatchWrite } from 'dynamo-document-builder/commands/batch-write';
 - [`BatchWrite`](/api-reference/classes/batchwrite)
 - [`BatchWriteConfig`](/api-reference/type-aliases/batchwriteconfig)
 - [`BatchWriteResult`](/api-reference/type-aliases/batchwriteresult)
+- [`TableBatchWrite`](/api-reference/classes/tablebatchwrite)
+- [`TableBatchWriteConfig`](/api-reference/type-aliases/tablebatchwriteconfig)
+- [`TableBatchWriteResult`](/api-reference/type-aliases/tablebatchwriteresult)
+- [`TableBatchGet`](/api-reference/classes/tablebatchget)
+- [`TableBatchGetConfig`](/api-reference/type-aliases/tablebatchgetconfig)
+- [`TableBatchGetResult`](/api-reference/type-aliases/tablebatchgetresult)

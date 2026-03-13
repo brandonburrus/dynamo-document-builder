@@ -1,8 +1,31 @@
 import type { TransactWriteOperation } from '@/core'
 import type { DynamoEntity } from '@/core/entity'
+import type { DynamoTable } from '@/core/table'
+import type { EntitySchema } from '@/core'
+import type { DynamoKey } from '@/core/key'
 import type { ConsumedCapacity, ReturnConsumedCapacity } from '@aws-sdk/client-dynamodb'
 import type { ResponseMetadata } from '@aws-sdk/types'
 import type { ZodObject } from 'zod/v4'
+
+/**
+ * Interface for commands that can be prepared for use in a table-level batch write.
+ *
+ * @template Schema The Zod schema type associated with the DynamoEntity.
+ */
+export type BatchWritePreparable<Schema extends ZodObject> = {
+  readonly items?: Array<EntitySchema<Schema>>
+  readonly deletes?: Array<Partial<EntitySchema<Schema>>>
+}
+
+/**
+ * Interface for commands that can be prepared for use in a table-level batch get.
+ *
+ * @template Schema The Zod schema type associated with the DynamoEntity.
+ */
+export type BatchGetPreparable<Schema extends ZodObject> = {
+  readonly keys: Array<Partial<EntitySchema<Schema>>>
+  readonly consistent?: boolean
+}
 
 /**
  * Interface-like type for command classes to extend from that defines the execute method.
@@ -29,12 +52,89 @@ export type BasePaginatable<Output, Schema extends ZodObject> = {
 }
 
 /**
+ * Interface-like type for get commands that can be included in a table-level get transaction.
+ *
+ * @template Schema The Zod schema type associated with the DynamoEntity.
+ */
+export type GetTransactable<Schema extends ZodObject> = {
+  readonly keys: Array<Partial<EntitySchema<Schema>>>
+}
+
+/**
  * Interface-like type for write commands that can be included in a write transaction.
  *
  * @template Schema The Zod schema type associated with the DynamoEntity.
  */
 export type WriteTransactable<Schema extends ZodObject> = {
   prepareWriteTransaction(entity: DynamoEntity<Schema>): Promise<TransactWriteOperation>
+}
+
+/**
+ * Interface-like type for table-level commands that execute directly against a DynamoTable.
+ *
+ * @template Output The output type of the command's execute method.
+ */
+export type TableCommand<Output> = {
+  execute(table: DynamoTable): Promise<Output>
+}
+
+/**
+ * Represents a set of write operations bound to a specific entity, ready to be included
+ * in a table-level TransactWrite command.
+ *
+ * @template Schema The Zod schema type associated with the DynamoEntity.
+ */
+export type PreparedWriteTransaction<Schema extends ZodObject> = {
+  entity: DynamoEntity<Schema>
+  writes: WriteTransactable<Schema>[]
+}
+
+/**
+ * Represents a TransactGet command bound to a specific entity, ready to be included
+ * in a table-level TransactGet command.
+ *
+ * @template Schema The Zod schema type associated with the DynamoEntity.
+ */
+export type PreparedGetTransaction<Schema extends ZodObject> = {
+  entity: DynamoEntity<Schema>
+  keys: Array<{ TableName: string; Key: DynamoKey }>
+  parseResults(
+    items: unknown[],
+    skipValidation: boolean,
+  ): Promise<Array<EntitySchema<Schema> | undefined>>
+}
+
+/**
+ * Represents a BatchWrite command bound to a specific entity, ready to be included
+ * in a table-level TableBatchWrite command.
+ *
+ * @template Schema The Zod schema type associated with the DynamoEntity.
+ */
+export type PreparedBatchWrite<Schema extends ZodObject> = {
+  entity: DynamoEntity<Schema>
+  buildRequests(
+    skipValidation: boolean,
+    abortSignal?: AbortSignal,
+  ): Promise<
+    Array<{ PutRequest: { Item: Record<string, unknown> } } | { DeleteRequest: { Key: DynamoKey } }>
+  >
+  matchUnprocessedPut(item: Record<string, unknown>): EntitySchema<Schema> | undefined
+  matchUnprocessedDelete(key: DynamoKey): Partial<EntitySchema<Schema>> | undefined
+}
+
+/**
+ * Represents a BatchGet command bound to a specific entity, ready to be included
+ * in a table-level TableBatchGet command.
+ *
+ * @template Schema The Zod schema type associated with the DynamoEntity.
+ */
+export type PreparedBatchGet<Schema extends ZodObject> = {
+  entity: DynamoEntity<Schema>
+  keys: Array<DynamoKey>
+  consistent: boolean
+  matchItem(item: Record<string, unknown>): boolean
+  parseResults(items: unknown[], skipValidation: boolean): Promise<Array<EntitySchema<Schema>>>
+  matchUnprocessedKey(key: DynamoKey): Partial<EntitySchema<Schema>> | undefined
 }
 
 /**
@@ -83,6 +183,12 @@ export * from './conditional-update'
 export * from './conditional-delete'
 export * from './batch-write'
 export * from './transact-write'
+export * from './table-transact-write'
+export * from './table-batch-write'
+
+// Reads (table-level)
+export * from './table-transact-get'
+export * from './table-batch-get'
 
 // Misc
 export * from './condition-check'

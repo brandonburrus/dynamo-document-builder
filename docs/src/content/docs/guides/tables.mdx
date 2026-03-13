@@ -95,6 +95,40 @@ const exampleTable = new DynamoTable({
 
 In the above example, `GSI1`, `GSI2`, and `LSI1` are the names of your secondary indexes and are what you use when needing to refer to them elsewhere in your code.
 
+## Sending Table-Level Commands
+
+In addition to entity-level operations executed via `entity.send()`, Document Builder supports **table-level commands** for operations that span multiple entity types in a single DynamoDB request. These commands are executed via `table.send()`.
+
+Use `entity.prepare()` to bind a batch or transaction command to a specific entity, then pass the prepared groups to a table command:
+
+```ts
+import { TableBatchWrite, TableBatchGet, BatchWrite, BatchGet } from 'dynamo-document-builder';
+
+// Prepare each entity's batch operation
+const userGroup = userEntity.prepare(new BatchWrite({
+  items: [{ userId: 'u1', name: 'Alice', email: 'alice@example.com' }],
+}));
+const orderGroup = orderEntity.prepare(new BatchGet({
+  keys: [{ orderId: 'o1' }, { orderId: 'o2' }],
+}));
+
+// Execute as a single DynamoDB request via table.send()
+const { unprocessedPuts } = await myTable.send(new TableBatchWrite({
+  writes: [userGroup, orderGroup],
+}));
+```
+
+Document Builder provides four table-level commands:
+
+- [`TableBatchWrite`](/guides/advanced/multi-entity-batching) — batch puts and deletes across multiple entity types
+- [`TableBatchGet`](/guides/advanced/multi-entity-batching) — batch reads across multiple entity types
+- [`TableTransactWrite`](/guides/advanced/multi-entity-transactions) — atomic transactional writes across multiple entity types
+- [`TableTransactGet`](/guides/advanced/multi-entity-transactions) — transactional reads across multiple entity types
+
+<Aside type='note'>
+All entities in a table-level command must belong to the same table. A `DocumentBuilderError` is thrown at runtime if any entity references a different table.
+</Aside>
+
 ## Tree-shakable Import
 
 ```ts
