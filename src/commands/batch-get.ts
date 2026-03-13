@@ -1,4 +1,4 @@
-import type { BaseConfig, BaseCommand, BaseResult } from '@/commands'
+import type { BaseConfig, BaseCommand, BaseResult, BatchGetPreparable } from '@/commands'
 import type { DynamoEntity } from '@/core/entity'
 import type { EntitySchema } from '@/core'
 import type { ZodObject } from 'zod/v4'
@@ -63,12 +63,20 @@ export type BatchGetResult<Schema extends ZodObject> = BaseResult & {
  * ```
  */
 export class BatchGet<Schema extends ZodObject>
-  implements BaseCommand<BatchGetResult<Schema>, Schema>
+  implements BaseCommand<BatchGetResult<Schema>, Schema>, BatchGetPreparable<Schema>
 {
   #config: BatchGetConfig<Schema>
 
   constructor(config: BatchGetConfig<Schema>) {
     this.#config = config
+  }
+
+  public get keys(): Array<Partial<EntitySchema<Schema>>> {
+    return this.#config.keys
+  }
+
+  public get consistent(): boolean {
+    return this.#config.consistent ?? false
   }
 
   public async execute(entity: DynamoEntity<Schema>): Promise<BatchGetResult<Schema>> {

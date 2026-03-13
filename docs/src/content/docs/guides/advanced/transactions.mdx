@@ -1,6 +1,6 @@
 ---
 title: Transactions
-description: A guide on building transactions using Dynamo Documnt Builder.
+description: A guide on building transactions using Dynamo Document Builder.
 ---
 
 import ConfigTable from '../../../../components/ConfigTable.astro';
@@ -104,6 +104,140 @@ This command can *only* be used in the context of a `TransactWrite` operation.
 Document Builder provides a expressive API for defining conditions over DynamoDB's base `ConditionExpression`, see [Conditions](/guides/advanced/conditions) for more details.
 </Aside>
 
+## Multi-Entity Transactions
+
+Use the `TableTransactWrite` and `TableTransactGet` commands to perform transactional operations across **multiple entity types** in a single DynamoDB request. These are the Document Builder table-level commands executed via `table.send()`.
+
+<Aside type='note' title='Single-Entity vs Multi-Entity Transactions'>
+The `TransactWrite` and `TransactGet` commands operate on a **single entity type** and are executed via `entity.send()`. When you need to transact across **multiple entity types** in one atomic DynamoDB call, use `TableTransactWrite` and `TableTransactGet` with `table.send()` instead.
+</Aside>
+
+### Preparing Entities
+
+Before passing entity operations to a table-level command, use `entity.prepare()` to bind each operation to its entity.
+
+For transactional **writes**, pass an array of write commands:
+
+```ts
+const userWrites = userEntity.prepare([
+  new Put({ item: { userId: 'u1', name: 'Alice', email: 'alice@example.com' } }),
+  new Delete({ key: { userId: 'u2', email: 'bob@example.com' } }),
+]);
+```
+
+For transactional **reads**, pass a `TransactGet` command:
+
+```ts
+const orderGets = orderEntity.prepare(new TransactGet({
+  keys: [{ orderId: 'o1' }, { orderId: 'o2' }],
+}));
+```
+
+### Multi-Entity Transactional Writes
+
+Pass prepared write groups to `TableTransactWrite` and execute via `table.send()`. The entire operation is **all-or-nothing** — either every write succeeds or none are applied.
+
+```ts
+await myTable.send(
+  new TableTransactWrite({
+    transactions: [
+      userEntity.prepare([
+        new Put({
+          item: { userId: 'u1', name: 'Alice', email: 'alice@example.com' },
+        }),
+        new Delete({
+          key: { userId: 'u99', email: 'old@example.com' },
+        }),
+      ]),
+      orderEntity.prepare([
+        new Update({
+          key: { orderId: 'o1' },
+          updates: { status: 'shipped' },
+        }),
+      ]),
+    ],
+  }),
+);
+```
+
+`TableTransactWrite` supports all the same write commands as the single-entity `TransactWrite`:
+
+- [`Put`](/guides/commands/put)
+- [`Update`](/guides/commands/update)
+- [`Delete`](/guides/commands/delete)
+- [`ConditionalPut`](/guides/commands/put#conditional-puts)
+- [`ConditionalUpdate`](/guides/commands/update#conditional-updates)
+- [`ConditionalDelete`](/guides/commands/delete#conditional-deletes)
+- [`ConditionCheck`](#condition-checks)
+
+#### Idempotency Token
+
+Pass an `idempotencyToken` to ensure the transaction is only applied once, even if the request is retried. DynamoDB treats duplicate requests with the same token within 10 minutes as no-ops.
+
+```ts
+await myTable.send(
+  new TableTransactWrite({
+    transactions: [...],
+    idempotencyToken: 'unique-request-token-123',
+  }),
+);
+```
+
+### Multi-Entity Transactional Reads
+
+Pass prepared get groups to `TableTransactGet` and execute via `table.send()`. Like `TransactGet`, this is an **all-or-nothing, strongly consistent** read — either all items are retrieved or none are.
+
+```ts
+const { items } = await myTable.send(
+  new TableTransactGet({
+    gets: [
+      userEntity.prepare(new TransactGet({
+        keys: [
+          { userId: 'u1', email: 'alice@example.com' },
+          { userId: 'u2', email: 'bob@example.com' },
+        ],
+      })),
+      orderEntity.prepare(new TransactGet({
+        keys: [{ orderId: 'o1' }, { orderId: 'o2' }],
+      })),
+    ],
+  }),
+);
+```
+
+The `items` field is a **typed tuple** that matches the order of the input `gets` array. Each index is typed to its corresponding entity, with `undefined` for keys where no item was found:
+
+```ts
+const [users, orders] = items;
+// users: (User | undefined)[]
+// orders: (Order | undefined)[]
+
+// Items preserve the original key order
+if (users[0]) {
+  console.log('First user:', users[0].name);
+}
+```
+
+<Aside type='note' title='TransactGet vs BatchGet'>
+`TableTransactGet` is an **all-or-nothing** operation with strongly consistent serializable isolation. `TableBatchGet` is a bulk read that may return partial results. Use transactional gets when you need to read multiple related items that must all be consistent with each other.
+</Aside>
+
+### Table Validation
+
+All entity groups in a `TableTransactWrite` or `TableTransactGet` must belong to the same table that `table.send()` is called on. If any entity references a different table, a `DocumentBuilderError` is thrown at runtime before any DynamoDB request is made.
+
+```ts
+// This will throw a DocumentBuilderError at runtime
+await tableA.send(new TableTransactGet({
+  gets: [
+    entityOnTableA.prepare(new TransactGet({ keys: [...] })),
+    entityOnTableB.prepare(new TransactGet({ keys: [...] })), // ❌ Wrong table
+  ],
+}));
+```
+
+---
+
 ## Transact Get Command Config
 
 The `TransactGet` command expects the following input config:
@@ -192,12 +326,107 @@ The `TransactWrite` command returns the following result:
   </PropTableEntry>
 </PropTable>
 
+## TableTransactWrite Command Config
+
+The `TableTransactWrite` command expects the following input config:
+
+```ts
+{
+  transactions: PreparedWriteTransaction[];
+  idempotencyToken?: string;
+  returnItemCollectionMetrics?: ReturnItemCollectionMetrics;
+  skipValidation?: boolean;
+  timeoutMs?: number;
+  abortController?: AbortController;
+  returnConsumedCapacity?: ReturnConsumedCapacity;
+}
+```
+
+<ConfigTable>
+  <PropTableEntry name='transactions' type='PreparedWriteTransaction[]' required>
+    An array of prepared write transaction groups, each created via `entity.prepare([...writes])`. All entities must belong to the same table.
+  </PropTableEntry>
+  <PropTableEntry name='idempotencyToken' type='string'>
+    A unique token for ensuring idempotent transactions. If the same token is provided within 10 minutes, DynamoDB will treat it as a duplicate request and return success without reapplying the writes.
+  </PropTableEntry>
+  <PropTableEntry name='returnItemCollectionMetrics' type='ReturnItemCollectionMetrics'>
+    Determines whether item collection metrics are returned.
+    Valid values are `SIZE` and `NONE`.
+  </PropTableEntry>
+</ConfigTable>
+
+## TableTransactWrite Command Result
+
+The `TableTransactWrite` command returns the following result:
+
+```ts
+{
+  responseMetadata?: ResponseMetadata;
+  consumedCapacity?: ConsumedCapacity[];
+  itemCollectionMetrics?: ItemCollectionMetrics;
+}
+```
+
+<PropTable>
+  <PropTableEntry name='responseMetadata?' type='ResponseMetadata'>
+    Metadata about the response from DynamoDB.
+  </PropTableEntry>
+  <PropTableEntry name='consumedCapacity?' type='ConsumedCapacity[]'>
+    An array of consumed capacity units for each table or index accessed during the transaction, if requested via `returnConsumedCapacity`.
+  </PropTableEntry>
+  <PropTableEntry name='itemCollectionMetrics?' type='ItemCollectionMetrics'>
+    Information about item collection metrics, if requested via `returnItemCollectionMetrics`.
+  </PropTableEntry>
+</PropTable>
+
+## TableTransactGet Command Config
+
+The `TableTransactGet` command expects the following input config:
+
+```ts
+{
+  gets: PreparedGetTransaction[];
+  skipValidation?: boolean;
+  timeoutMs?: number;
+  abortController?: AbortController;
+  returnConsumedCapacity?: ReturnConsumedCapacity;
+}
+```
+
+<ConfigTable>
+  <PropTableEntry name='gets' type='PreparedGetTransaction[]' required>
+    An array of prepared transactional get groups, each created via `entity.prepare(new TransactGet({ ... }))`. All entities must belong to the same table.
+  </PropTableEntry>
+</ConfigTable>
+
+## TableTransactGet Command Result
+
+The `TableTransactGet` command returns the following result:
+
+```ts
+{
+  items: Array<(Schema | undefined)[]>;  // tuple, one entry per get group
+  responseMetadata?: ResponseMetadata;
+  consumedCapacity?: ConsumedCapacity;
+}
+```
+
+<ResultTable>
+  <PropTableEntry name='items' type='Array&lt;(Schema | undefined)[]&gt;'>
+    A tuple (one entry per get group in input order) of retrieved items for each entity.
+    Items within each group are in the same order as the keys provided.
+    An item is `undefined` if no item was found for the corresponding key.
+  </PropTableEntry>
+</ResultTable>
+
 ## Tree-shakable Imports
 
 ```ts
 import { TransactGet } from 'dynamo-document-builder/commands/transact-get';
 import { TransactWrite } from 'dynamo-document-builder/commands/transact-write';
 import { ConditionCheck } from 'dynamo-document-builder/commands/condition-check';
+import { TableTransactWrite } from 'dynamo-document-builder/commands/table-transact-write';
+import { TableTransactGet } from 'dynamo-document-builder/commands/table-transact-get';
 ```
 
 ## API Reference
@@ -210,3 +439,9 @@ import { ConditionCheck } from 'dynamo-document-builder/commands/condition-check
 - [`TransactWriteResult`](/api-reference/type-aliases/transactwriteresult)
 - [`ConditionCheck`](/api-reference/classes/conditioncheck)
 - [`ConditionCheckConfig`](/api-reference/type-aliases/conditioncheckconfig)
+- [`TableTransactWrite`](/api-reference/classes/tabletransactwrite)
+- [`TableTransactWriteConfig`](/api-reference/type-aliases/tabletransactwriteconfig)
+- [`TableTransactWriteResult`](/api-reference/type-aliases/tabletransactwriteresult)
+- [`TableTransactGet`](/api-reference/classes/tabletransactget)
+- [`TableTransactGetConfig`](/api-reference/type-aliases/tabletransactgetconfig)
+- [`TableTransactGetResult`](/api-reference/type-aliases/tabletransactgetresult)
