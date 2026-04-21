@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "target": "es2016",
+    "lib": ["es2016", "esnext.asynciterable"],
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "noLib": false,
