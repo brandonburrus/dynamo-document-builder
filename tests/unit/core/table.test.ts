@@ -117,4 +117,38 @@ describe('DynamoTable', () => {
       },
     })
   })
+
+  describe('lazy client initialization', () => {
+    it('should allow construction without a documentClient', () => {
+      const table = new DynamoTable({ tableName: 'TestTable' })
+
+      expect(table).toBeDefined()
+      expect(table.tableName).toBe('TestTable')
+    })
+
+    it('should throw when accessing documentClient before initialization', () => {
+      const table = new DynamoTable({ tableName: 'TestTable' })
+
+      expect(() => table.documentClient).toThrow(
+        'documentClient has not been set on this DynamoTable',
+      )
+    })
+
+    it('should allow setting the client via initClient', () => {
+      const table = new DynamoTable({ tableName: 'TestTable' })
+
+      table.initClient(documentClient)
+
+      expect(table.documentClient).toBe(documentClient)
+    })
+
+    it('should allow overriding the client via initClient', () => {
+      const table = new DynamoTable({ tableName: 'TestTable', documentClient })
+      const otherClient = DynamoDBDocumentClient.from(new DynamoDBClient())
+
+      table.initClient(otherClient)
+
+      expect(table.documentClient).toBe(otherClient)
+    })
+  })
 })

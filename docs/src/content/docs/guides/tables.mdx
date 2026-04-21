@@ -15,7 +15,7 @@ All the code examples in this guide assume there is a corresponding table in Dyn
 
 ## Basic Usage
 
-The only required parameters when defining a `DynamoTable` are the table name and a `DynamoDBDocumentClient` instance.
+The only required parameter when defining a `DynamoTable` is the table name.
 
 ```ts
 const dynamoDbClient = new DynamoDBClient();
@@ -29,6 +29,27 @@ const exampleTable = new DynamoTable({
 
 <Aside type='tip'>
 If you're using Lambda, make sure to define your table *outside* of the handler function to avoid recreating the table instance on every function invocation.
+</Aside>
+
+## Lazy Client Initialization
+
+The `documentClient` can be omitted at construction time and provided later via `initClient`. This decouples table and entity definitions from the SDK client lifecycle, which is useful when the client depends on runtime configuration that isn't available at module load time.
+
+```ts
+// Define table and entities at module scope
+const exampleTable = new DynamoTable({
+  tableName: 'ExampleTable',
+});
+
+const myEntity = new DynamoEntity({ table: exampleTable, schema: mySchema });
+
+// Later, when the client is available
+const docClient = DynamoDBDocumentClient.from(new DynamoDBClient());
+exampleTable.initClient(docClient);
+```
+
+<Aside type='caution'>
+Accessing `documentClient` (e.g. by sending a command) before it has been set via the constructor or `initClient` will throw an error.
 </Aside>
 
 ## Key Names

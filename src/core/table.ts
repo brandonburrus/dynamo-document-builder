@@ -16,7 +16,7 @@ import type { TableCommand } from '@/commands'
  */
 export type DynamoTableConfig = {
   tableName: string
-  documentClient: DynamoDBDocumentClient
+  documentClient?: DynamoDBDocumentClient
   keyNames?: {
     partitionKey: string
     sortKey?: string | null
@@ -30,7 +30,7 @@ export type DynamoTableConfig = {
  */
 export class DynamoTable {
   #tableName: string
-  #documentClient: DynamoDBDocumentClient
+  #documentClient: DynamoDBDocumentClient | undefined
 
   #pk: string = 'PK'
   #sk: string | null = 'SK'
@@ -60,9 +60,24 @@ export class DynamoTable {
 
   /**
    * The DynamoDB Document Client instance used for operations.
+   * @throws Error if no client has been provided via the constructor or `initClient`.
    */
   public get documentClient(): DynamoDBDocumentClient {
+    if (this.#documentClient === undefined) {
+      throw new Error(
+        'documentClient has not been set on this DynamoTable. ' +
+          'Provide it in the constructor config or call table.initClient(client) before executing commands.',
+      )
+    }
     return this.#documentClient
+  }
+
+  /**
+   * Sets the DynamoDB Document Client for this table, allowing the client
+   * to be initialized after table construction.
+   */
+  public initClient(client: DynamoDBDocumentClient): void {
+    this.#documentClient = client
   }
 
   /**
