@@ -177,5 +177,5 @@ export default defineConfig({
     port: 3000,
   },
 
-  adapter: netlify(),
+  adapter: process.env.NETLIFY ? netlify() : undefined,
 })

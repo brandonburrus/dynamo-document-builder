@@ -29,11 +29,32 @@ const myTable = new DynamoTable({
 });
 ```
 
-**`keyNames` options**:
-- `partitionKey`: Partition key attribute name (default: `'PK'`)
-- `sortKey`: Sort key attribute name (default: `'SK'`, set to `null` for simple key tables)
-- `globalSecondaryIndexes`: Map of GSI name → `{ partitionKey, sortKey? }`
-- `localSecondaryIndexes`: Map of LSI name → `{ sortKey }`
+**`DynamoTableConfig` options**:
+- `tableName`: DynamoDB table name (required)
+- `documentClient`: `DynamoDBDocumentClient` instance (optional — can be set later via `initClient`)
+- `keyNames.partitionKey`: Partition key attribute name (default: `'PK'`)
+- `keyNames.sortKey`: Sort key attribute name (default: `'SK'`, set to `null` for simple key tables)
+- `keyNames.globalSecondaryIndexes`: Map of GSI name → `{ partitionKey, sortKey? }`
+- `keyNames.localSecondaryIndexes`: Map of LSI name → `{ sortKey }`
+
+### Lazy Client Initialization
+
+The `documentClient` can be omitted at construction time and provided later via `initClient`. This allows table and entity definitions to exist independently of the SDK client lifecycle.
+
+```typescript
+// Define table and entities at module scope without a client
+const myTable = new DynamoTable({
+  tableName: 'MyTable',
+  keyNames: { partitionKey: 'PK', sortKey: 'SK' },
+});
+
+const myEntity = new DynamoEntity({ table: myTable, schema: mySchema });
+
+// Later, when the client is available
+myTable.initClient(DynamoDBDocumentClient.from(new DynamoDBClient()));
+```
+
+Accessing `documentClient` before calling `initClient` (or providing it in the constructor) throws an error.
 
 ## Entities
 
