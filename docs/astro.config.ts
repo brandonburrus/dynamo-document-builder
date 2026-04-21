@@ -145,7 +145,7 @@ export default defineConfig({
             collapsed: true,
           },
           entryPoints: ['../src/index.ts'],
-          tsconfig: '../tsconfig.json',
+          tsconfig: '../tsconfig.typedoc.json',
           pagination: false,
           typeDoc: {
             name: 'API Reference',
