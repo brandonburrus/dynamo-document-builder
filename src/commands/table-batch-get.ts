@@ -1,9 +1,8 @@
 import type { BaseConfig, TableCommand, PreparedBatchGet } from '@/commands'
-import type { EntitySchema } from '@/core'
+import type { EntitySchema, ObjectLikeZodType } from '@/core'
 import type { DynamoTable } from '@/core/table'
 import type { ConsumedCapacity } from '@aws-sdk/client-dynamodb'
 import type { ResponseMetadata } from '@aws-sdk/types'
-import type { ZodObject } from 'zod/v4'
 import { DocumentBuilderError } from '@/errors'
 import { BatchGetCommand } from '@aws-sdk/lib-dynamodb'
 import { BATCH_GET_VALIDATION_CONCURRENCY } from '@/internal-constants'
@@ -18,14 +17,14 @@ type ExtractSchema<T> = T extends PreparedBatchGet<infer S> ? EntitySchema<S> : 
 /**
  * Maps an array of PreparedBatchGets to a tuple of their result item arrays.
  */
-type TableBatchGetItems<Gets extends PreparedBatchGet<ZodObject>[]> = {
+type TableBatchGetItems<Gets extends PreparedBatchGet<ObjectLikeZodType>[]> = {
   [K in keyof Gets]: Array<ExtractSchema<Gets[K]>>
 }
 
 /**
  * Maps an array of PreparedBatchGets to a tuple of their unprocessed key arrays.
  */
-type TableBatchGetUnprocessedKeys<Gets extends PreparedBatchGet<ZodObject>[]> = {
+type TableBatchGetUnprocessedKeys<Gets extends PreparedBatchGet<ObjectLikeZodType>[]> = {
   [K in keyof Gets]: Array<Partial<ExtractSchema<Gets[K]>>> | undefined
 }
 

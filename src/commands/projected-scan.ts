@@ -1,8 +1,7 @@
 import type { DynamoEntity } from '@/core/entity'
-import type { EntitySchema } from '@/core'
+import type { EntitySchema, ObjectLikeZodType } from '@/core'
 import type { ScanConfig } from '@/commands/scan'
 import type { Projection } from '@/projections'
-import type { ZodObject } from 'zod/v4'
 import { AttributeExpressionMap } from '@/attributes/attribute-map'
 import type { BaseCommand, BasePaginatable, BaseResult } from '@/commands'
 import { PROJECTED_SCAN_VALIDATION_CONCURRENCY } from '@/internal-constants'
@@ -22,7 +21,7 @@ import pMap from 'p-map'
  *
  * @template ProjectionSchema - The Zod schema defining the structure of the projected attributes.
  */
-export type ProjectedScanConfig<ProjectionSchema extends ZodObject> =
+export type ProjectedScanConfig<ProjectionSchema extends ObjectLikeZodType> =
   ScanConfig<ProjectionSchema> & {
     projection: Projection
     projectionSchema: ProjectionSchema
@@ -35,8 +34,8 @@ export type ProjectedScanConfig<ProjectionSchema extends ZodObject> =
  * @template ProjectionSchema - The Zod schema defining the structure of the projected attributes.
  */
 export type ProjectedScanResult<
-  Schema extends ZodObject,
-  ProjectionSchema extends ZodObject,
+  Schema extends ObjectLikeZodType,
+  ProjectionSchema extends ObjectLikeZodType,
 > = BaseResult & {
   items: EntitySchema<ProjectionSchema>[]
   count: number
@@ -85,8 +84,10 @@ export type ProjectedScanResult<
  * const { items, scannedCount } = await todoEntity.send(projectedScanCommand);
  * ```
  */
-export class ProjectedScan<Schema extends ZodObject, ProjectedSchema extends ZodObject>
-  implements
+export class ProjectedScan<
+  Schema extends ObjectLikeZodType,
+  ProjectedSchema extends ObjectLikeZodType,
+> implements
     BaseCommand<ProjectedScanResult<Schema, ProjectedSchema>, Schema>,
     BasePaginatable<ProjectedScanResult<Schema, ProjectedSchema>, Schema>
 {

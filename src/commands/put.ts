@@ -1,11 +1,11 @@
 import type { DynamoEntity } from '@/core/entity'
-import type { EntitySchema, TransactWriteOperation } from '@/core'
+import type { EntitySchema, TransactWriteOperation, ObjectLikeZodType } from '@/core'
+import { parsePartial } from '@/core'
 import type {
   ItemCollectionMetrics,
   ReturnItemCollectionMetrics,
   ReturnValue,
 } from '@aws-sdk/client-dynamodb'
-import type { ZodObject } from 'zod/v4'
 import { PutCommand } from '@aws-sdk/lib-dynamodb'
 import type { BaseConfig, BaseCommand, BaseResult, WriteTransactable } from '@/commands'
 
@@ -14,7 +14,7 @@ import type { BaseConfig, BaseCommand, BaseResult, WriteTransactable } from '@/c
  *
  * @template Schema - The Zod schema defining the structure of the entity.
  */
-export type PutConfig<Schema extends ZodObject> = BaseConfig & {
+export type PutConfig<Schema extends ObjectLikeZodType> = BaseConfig & {
   item: EntitySchema<Schema>
   returnValues?: ReturnValue
   returnItemCollectionMetrics?: ReturnItemCollectionMetrics
@@ -25,7 +25,7 @@ export type PutConfig<Schema extends ZodObject> = BaseConfig & {
  *
  * @template Schema - The Zod schema defining the structure of the entity.
  */
-export type PutResult<Schema extends ZodObject> = BaseResult & {
+export type PutResult<Schema extends ObjectLikeZodType> = BaseResult & {
   returnItem: Partial<EntitySchema<Schema>> | undefined
   itemCollectionMetrics?: ItemCollectionMetrics
 }
@@ -67,7 +67,7 @@ export type PutResult<Schema extends ZodObject> = BaseResult & {
  * const { returnItem } = await userEntity.send(putCommand);
  * ```
  */
-export class Put<Schema extends ZodObject>
+export class Put<Schema extends ObjectLikeZodType>
   implements BaseCommand<PutResult<Schema>, Schema>, WriteTransactable<Schema>
 {
   #config: PutConfig<Schema>
@@ -82,7 +82,7 @@ export class Put<Schema extends ZodObject>
       : await entity.schema.encodeAsync(this.#config.item)
 
     return {
-      ...encodedData,
+      ...(encodedData as Record<string, unknown>),
       ...entity.buildAllKeys(this.#config.item),
     }
   }
@@ -104,7 +104,7 @@ export class Put<Schema extends ZodObject>
       const returnItem = (
         this.#config.skipValidation
           ? putResult.Attributes
-          : await entity.schema.partial().parseAsync(putResult.Attributes)
+          : await parsePartial(entity.schema, putResult.Attributes)
       ) as Partial<EntitySchema<Schema>>
 
       return {

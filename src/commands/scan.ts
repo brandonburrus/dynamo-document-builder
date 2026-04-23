@@ -1,8 +1,7 @@
 import type { Condition } from '@/conditions'
 import type { DynamoEntity } from '@/core/entity'
-import type { EntitySchema } from '@/core'
+import type { EntitySchema, ObjectLikeZodType } from '@/core'
 import type { Select } from '@aws-sdk/client-dynamodb'
-import type { ZodObject } from 'zod/v4'
 import { AttributeExpressionMap } from '@/attributes/attribute-map'
 import type { BaseCommand, BaseConfig, BasePaginatable, BaseResult } from '@/commands'
 import { SCAN_VALIDATION_CONCURRENCY } from '@/internal-constants'
@@ -21,7 +20,7 @@ import pMap from 'p-map'
  *
  * @template Schema - The Zod schema defining the structure of the entity.
  */
-export type ScanConfig<Schema extends ZodObject> = BaseConfig & {
+export type ScanConfig<Schema extends ObjectLikeZodType> = BaseConfig & {
   indexName?: string
   filter?: Condition
   limit?: number
@@ -39,7 +38,7 @@ export type ScanConfig<Schema extends ZodObject> = BaseConfig & {
  *
  * @template Schema - The Zod schema defining the structure of the entity.
  */
-export type ScanResult<Schema extends ZodObject> = BaseResult & {
+export type ScanResult<Schema extends ObjectLikeZodType> = BaseResult & {
   items: EntitySchema<Schema>[]
   count: number
   scannedCount: number
@@ -79,7 +78,7 @@ export type ScanResult<Schema extends ZodObject> = BaseResult & {
  * const { items, scannedCount } = await todoEntity.send(scanCommand);
  * ```
  */
-export class Scan<Schema extends ZodObject>
+export class Scan<Schema extends ObjectLikeZodType>
   implements BaseCommand<ScanResult<Schema>, Schema>, BasePaginatable<ScanResult<Schema>, Schema>
 {
   #config: ScanConfig<Schema> | undefined

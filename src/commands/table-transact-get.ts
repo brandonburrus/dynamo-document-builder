@@ -1,7 +1,6 @@
 import type { BaseConfig, BaseResult, TableCommand, PreparedGetTransaction } from '@/commands'
 import type { DynamoTable } from '@/core/table'
-import type { EntitySchema } from '@/core'
-import type { ZodObject } from 'zod/v4'
+import type { EntitySchema, ObjectLikeZodType } from '@/core'
 import { DocumentBuilderError } from '@/errors'
 import { TransactGetCommand } from '@aws-sdk/lib-dynamodb'
 
@@ -14,7 +13,7 @@ type ExtractSchema<T> = T extends PreparedGetTransaction<infer S> ? EntitySchema
 /**
  * Maps an array of PreparedGetTransactions to a tuple of their result item arrays.
  */
-type TableTransactGetItems<Gets extends PreparedGetTransaction<ZodObject>[]> = {
+type TableTransactGetItems<Gets extends PreparedGetTransaction<ObjectLikeZodType>[]> = {
   [K in keyof Gets]: Array<ExtractSchema<Gets[K]> | undefined>
 }
 
@@ -23,7 +22,7 @@ type TableTransactGetItems<Gets extends PreparedGetTransaction<ZodObject>[]> = {
  *
  * @template Gets - Tuple of PreparedGetTransaction types, one per entity group.
  */
-export type TableTransactGetConfig<Gets extends PreparedGetTransaction<ZodObject>[]> =
+export type TableTransactGetConfig<Gets extends PreparedGetTransaction<ObjectLikeZodType>[]> =
   BaseConfig & {
     gets: [...Gets]
   }
@@ -33,7 +32,7 @@ export type TableTransactGetConfig<Gets extends PreparedGetTransaction<ZodObject
  *
  * @template Gets - Tuple of PreparedGetTransaction types, one per entity group.
  */
-export type TableTransactGetResult<Gets extends PreparedGetTransaction<ZodObject>[]> =
+export type TableTransactGetResult<Gets extends PreparedGetTransaction<ObjectLikeZodType>[]> =
   BaseResult & {
     items: TableTransactGetItems<Gets>
   }
@@ -59,7 +58,7 @@ export type TableTransactGetResult<Gets extends PreparedGetTransaction<ZodObject
  * // orders: (Order | undefined)[]
  * ```
  */
-export class TableTransactGet<Gets extends PreparedGetTransaction<ZodObject>[]>
+export class TableTransactGet<Gets extends PreparedGetTransaction<ObjectLikeZodType>[]>
   implements TableCommand<TableTransactGetResult<Gets>>
 {
   #config: TableTransactGetConfig<Gets>

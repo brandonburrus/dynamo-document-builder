@@ -1,13 +1,12 @@
 import type { BaseConfig, TableCommand, PreparedBatchWrite } from '@/commands'
 import type { DynamoTable } from '@/core/table'
-import type { EntitySchema } from '@/core'
+import type { EntitySchema, ObjectLikeZodType } from '@/core'
 import type {
   ConsumedCapacity,
   ItemCollectionMetrics,
   ReturnItemCollectionMetrics,
 } from '@aws-sdk/client-dynamodb'
 import type { ResponseMetadata } from '@aws-sdk/types'
-import type { ZodObject } from 'zod/v4'
 import { DocumentBuilderError } from '@/errors'
 import { BatchWriteCommand } from '@aws-sdk/lib-dynamodb'
 import { BATCH_WRITE_VALIDATION_CONCURRENCY } from '@/internal-constants'
@@ -22,14 +21,14 @@ type ExtractSchema<T> = T extends PreparedBatchWrite<infer S> ? EntitySchema<S> 
 /**
  * Maps an array of PreparedBatchWrites to a tuple of their unprocessed put arrays.
  */
-type TableBatchWriteUnprocessedPuts<Writes extends PreparedBatchWrite<ZodObject>[]> = {
+type TableBatchWriteUnprocessedPuts<Writes extends PreparedBatchWrite<ObjectLikeZodType>[]> = {
   [K in keyof Writes]: Array<ExtractSchema<Writes[K]>> | undefined
 }
 
 /**
  * Maps an array of PreparedBatchWrites to a tuple of their unprocessed delete arrays.
  */
-type TableBatchWriteUnprocessedDeletes<Writes extends PreparedBatchWrite<ZodObject>[]> = {
+type TableBatchWriteUnprocessedDeletes<Writes extends PreparedBatchWrite<ObjectLikeZodType>[]> = {
   [K in keyof Writes]: Array<Partial<ExtractSchema<Writes[K]>>> | undefined
 }
 

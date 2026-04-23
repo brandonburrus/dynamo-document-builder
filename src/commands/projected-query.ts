@@ -1,8 +1,7 @@
 import type { DynamoEntity } from '@/core/entity'
-import type { EntitySchema } from '@/core'
+import type { EntitySchema, ObjectLikeZodType } from '@/core'
 import type { Projection } from '@/projections'
 import type { QueryConfig } from '@/commands/query'
-import type { ZodObject } from 'zod/v4'
 import { AttributeExpressionMap } from '@/attributes/attribute-map'
 import { PROJECTED_QUERY_VALIDATION_CONCURRENCY } from '@/internal-constants'
 import { parseCondition } from '@/conditions/condition-parser'
@@ -25,8 +24,8 @@ import pMap from 'p-map'
  * @template ProjectionSchema - The Zod schema defining the structure of the projected attributes.
  */
 export type ProjectedQueryConfig<
-  Schema extends ZodObject,
-  ProjectionSchema extends ZodObject,
+  Schema extends ObjectLikeZodType,
+  ProjectionSchema extends ObjectLikeZodType,
 > = QueryConfig<Schema> & {
   projection: Projection
   projectionSchema: ProjectionSchema
@@ -39,8 +38,8 @@ export type ProjectedQueryConfig<
  * @template ProjectionSchema - The Zod schema defining the structure of the projected attributes.
  */
 export type ProjectedQueryResult<
-  Schema extends ZodObject,
-  ProjectionSchema extends ZodObject,
+  Schema extends ObjectLikeZodType,
+  ProjectionSchema extends ObjectLikeZodType,
 > = BaseResult & {
   items: EntitySchema<ProjectionSchema>[]
   count: number
@@ -89,8 +88,10 @@ export type ProjectedQueryResult<
  * const { items, count } = await todoEntity.send(projectedQueryCommand);
  * ```
  */
-export class ProjectedQuery<Schema extends ZodObject, ProjectedSchema extends ZodObject>
-  implements
+export class ProjectedQuery<
+  Schema extends ObjectLikeZodType,
+  ProjectedSchema extends ObjectLikeZodType,
+> implements
     BaseCommand<ProjectedQueryResult<Schema, ProjectedSchema>, Schema>,
     BasePaginatable<ProjectedQueryResult<Schema, ProjectedSchema>, Schema>
 {

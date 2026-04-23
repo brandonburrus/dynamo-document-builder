@@ -1,12 +1,12 @@
 import type { Condition } from '@/conditions'
 import type { DeleteConfig } from '@/commands/delete'
 import type { DynamoEntity } from '@/core/entity'
-import type { EntitySchema, TransactWriteOperation } from '@/core'
+import type { EntitySchema, TransactWriteOperation, ObjectLikeZodType } from '@/core'
+import { parsePartial } from '@/core'
 import type {
   ItemCollectionMetrics,
   ReturnValuesOnConditionCheckFailure,
 } from '@aws-sdk/client-dynamodb'
-import type { ZodObject } from 'zod/v4'
 import { DeleteCommand } from '@aws-sdk/lib-dynamodb'
 import { parseCondition } from '@/conditions/condition-parser'
 import type { BaseResult, BaseCommand, WriteTransactable } from '@/commands'
@@ -16,7 +16,7 @@ import type { BaseResult, BaseCommand, WriteTransactable } from '@/commands'
  *
  * @template Schema - The Zod schema defining the structure of the entity.
  */
-export type ConditionalDeleteConfig<Schema extends ZodObject> = DeleteConfig<Schema> & {
+export type ConditionalDeleteConfig<Schema extends ObjectLikeZodType> = DeleteConfig<Schema> & {
   condition: Condition
   returnValuesOnConditionCheckFailure?: ReturnValuesOnConditionCheckFailure
 }
@@ -26,7 +26,7 @@ export type ConditionalDeleteConfig<Schema extends ZodObject> = DeleteConfig<Sch
  *
  * @template Schema - The Zod schema defining the structure of the entity.
  */
-export type ConditionalDeleteResult<Schema extends ZodObject> = BaseResult & {
+export type ConditionalDeleteResult<Schema extends ObjectLikeZodType> = BaseResult & {
   deletedItem?: Partial<EntitySchema<Schema>> | undefined
   itemCollectionMetrics?: ItemCollectionMetrics
 }
@@ -64,7 +64,7 @@ export type ConditionalDeleteResult<Schema extends ZodObject> = BaseResult & {
  * const { deletedItem } = await userEntity.send(conditionalDeleteCommand);
  * ```
  */
-export class ConditionalDelete<Schema extends ZodObject>
+export class ConditionalDelete<Schema extends ObjectLikeZodType>
   implements BaseCommand<ConditionalDeleteResult<Schema>, Schema>, WriteTransactable<Schema>
 {
   #config: ConditionalDeleteConfig<Schema>
@@ -97,9 +97,7 @@ export class ConditionalDelete<Schema extends ZodObject>
       if (this.#config.skipValidation) {
         deletedItem = deleteResult.Attributes as Partial<EntitySchema<Schema>>
       } else {
-        deletedItem = (await entity.schema
-          .partial()
-          .parseAsync(deleteResult.Attributes)) as Partial<EntitySchema<Schema>>
+        deletedItem = await parsePartial(entity.schema, deleteResult.Attributes)
       }
     }
 

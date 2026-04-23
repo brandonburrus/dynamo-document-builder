@@ -1,12 +1,11 @@
 import type { Condition } from '@/conditions'
 import type { DynamoEntity } from '@/core/entity'
-import type { EntitySchema, TransactWriteOperation } from '@/core'
+import type { EntitySchema, TransactWriteOperation, ObjectLikeZodType } from '@/core'
 import type {
   ItemCollectionMetrics,
   ReturnValuesOnConditionCheckFailure,
 } from '@aws-sdk/client-dynamodb'
 import type { UpdateConfig } from '@/commands/update'
-import type { ZodObject } from 'zod/v4'
 import { AttributeExpressionMap } from '@/attributes'
 import { UpdateCommand } from '@aws-sdk/lib-dynamodb'
 import { parseCondition } from '@/conditions/condition-parser'
@@ -18,7 +17,7 @@ import type { BaseResult, BaseCommand, WriteTransactable } from '@/commands'
  *
  * @template Schema - The Zod schema defining the structure of the entity.
  */
-export type ConditionalUpdateConfig<Schema extends ZodObject> = UpdateConfig<Schema> & {
+export type ConditionalUpdateConfig<Schema extends ObjectLikeZodType> = UpdateConfig<Schema> & {
   condition: Condition
   returnValuesOnConditionCheckFailure?: ReturnValuesOnConditionCheckFailure
 }
@@ -28,7 +27,7 @@ export type ConditionalUpdateConfig<Schema extends ZodObject> = UpdateConfig<Sch
  *
  * @template Schema - The Zod schema defining the structure of the entity.
  */
-export type ConditionalUpdateResult<Schema extends ZodObject> = BaseResult & {
+export type ConditionalUpdateResult<Schema extends ObjectLikeZodType> = BaseResult & {
   updatedItem?: EntitySchema<Schema> | undefined
   itemCollectionMetrics?: ItemCollectionMetrics
 }
@@ -68,7 +67,7 @@ export type ConditionalUpdateResult<Schema extends ZodObject> = BaseResult & {
  * const { updatedItem } = await userEntity.send(conditionalUpdateCommand);
  * ```
  */
-export class ConditionalUpdate<Schema extends ZodObject>
+export class ConditionalUpdate<Schema extends ObjectLikeZodType>
   implements BaseCommand<ConditionalUpdateResult<Schema>, Schema>, WriteTransactable<Schema>
 {
   #config: ConditionalUpdateConfig<Schema>
