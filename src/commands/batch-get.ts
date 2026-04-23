@@ -1,7 +1,6 @@
 import type { BaseConfig, BaseCommand, BaseResult, BatchGetPreparable } from '@/commands'
 import type { DynamoEntity } from '@/core/entity'
-import type { EntitySchema } from '@/core'
-import type { ZodObject } from 'zod/v4'
+import type { EntitySchema, ObjectLikeZodType } from '@/core'
 import { BATCH_GET_VALIDATION_CONCURRENCY } from '@/internal-constants'
 import { BatchGetCommand } from '@aws-sdk/lib-dynamodb'
 import pMap from 'p-map'
@@ -11,7 +10,7 @@ import pMap from 'p-map'
  *
  * @template Schema - The Zod schema defining the structure of the entity.
  */
-export type BatchGetConfig<Schema extends ZodObject> = BaseConfig & {
+export type BatchGetConfig<Schema extends ObjectLikeZodType> = BaseConfig & {
   keys: Array<Partial<EntitySchema<Schema>>>
   consistent?: boolean
 }
@@ -21,7 +20,7 @@ export type BatchGetConfig<Schema extends ZodObject> = BaseConfig & {
  *
  * @template Schema - The Zod schema defining the structure of the entity.
  */
-export type BatchGetResult<Schema extends ZodObject> = BaseResult & {
+export type BatchGetResult<Schema extends ObjectLikeZodType> = BaseResult & {
   items: Array<EntitySchema<Schema>>
   unprocessedKeys?: Array<Partial<EntitySchema<Schema>>>
 }
@@ -62,7 +61,7 @@ export type BatchGetResult<Schema extends ZodObject> = BaseResult & {
  * const { items } = await batchGetCommand.execute(userEntity);
  * ```
  */
-export class BatchGet<Schema extends ZodObject>
+export class BatchGet<Schema extends ObjectLikeZodType>
   implements BaseCommand<BatchGetResult<Schema>, Schema>, BatchGetPreparable<Schema>
 {
   #config: BatchGetConfig<Schema>

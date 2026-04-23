@@ -6,7 +6,7 @@ import type {
 } from '@aws-sdk/client-dynamodb'
 import type { DynamoEntity } from '@/core/entity'
 import type { ResponseMetadata } from '@aws-sdk/types'
-import type { ZodObject } from 'zod/v4'
+import type { ObjectLikeZodType } from '@/core'
 import { TRANSACTION_WRITE_VALIDATION_CONCURRENCY } from '@/internal-constants'
 import { TransactWriteCommand } from '@aws-sdk/lib-dynamodb'
 import pMap from 'p-map'
@@ -16,7 +16,7 @@ import pMap from 'p-map'
  *
  * @template Schema - The Zod schema defining the structure of the entity.
  */
-export type TransactWriteConfig<Schema extends ZodObject> = BaseConfig & {
+export type TransactWriteConfig<Schema extends ObjectLikeZodType> = BaseConfig & {
   writes: WriteTransactable<Schema>[]
   idempotencyToken?: string
   returnItemCollectionMetrics?: ReturnItemCollectionMetrics
@@ -68,7 +68,7 @@ export type TransactWriteResult = {
  * await userEntity.send(transactWriteCommand);
  * ```
  */
-export class TransactWrite<Schema extends ZodObject>
+export class TransactWrite<Schema extends ObjectLikeZodType>
   implements BaseCommand<TransactWriteResult, Schema>
 {
   #config: TransactWriteConfig<Schema>

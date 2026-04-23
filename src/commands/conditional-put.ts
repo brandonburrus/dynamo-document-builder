@@ -1,12 +1,11 @@
 import type { Condition } from '@/conditions'
 import type { DynamoEntity } from '@/core/entity'
-import type { EntitySchema, TransactWriteOperation } from '@/core'
+import type { EntitySchema, TransactWriteOperation, ObjectLikeZodType } from '@/core'
 import type {
   ItemCollectionMetrics,
   ReturnValuesOnConditionCheckFailure,
 } from '@aws-sdk/client-dynamodb'
 import type { PutConfig } from '@/commands/put'
-import type { ZodObject } from 'zod/v4'
 import { PutCommand } from '@aws-sdk/lib-dynamodb'
 import { parseCondition } from '@/conditions/condition-parser'
 import type { BaseResult, BaseCommand, WriteTransactable } from '@/commands'
@@ -16,7 +15,7 @@ import type { BaseResult, BaseCommand, WriteTransactable } from '@/commands'
  *
  * @template Schema - The Zod schema defining the structure of the entity.
  */
-export type ConditionalPutConfig<Schema extends ZodObject> = PutConfig<Schema> & {
+export type ConditionalPutConfig<Schema extends ObjectLikeZodType> = PutConfig<Schema> & {
   condition: Condition
   returnValuesOnConditionCheckFailure?: ReturnValuesOnConditionCheckFailure
 }
@@ -26,7 +25,7 @@ export type ConditionalPutConfig<Schema extends ZodObject> = PutConfig<Schema> &
  *
  * @template Schema - The Zod schema defining the structure of the entity.
  */
-export type ConditionalPutResult<Schema extends ZodObject> = BaseResult & {
+export type ConditionalPutResult<Schema extends ObjectLikeZodType> = BaseResult & {
   returnItem: EntitySchema<Schema> | undefined
   itemCollectionMetrics: ItemCollectionMetrics | undefined
 }
@@ -65,7 +64,7 @@ export type ConditionalPutResult<Schema extends ZodObject> = BaseResult & {
  * await userEntity.send(conditionalPutCommand);
  * ```
  */
-export class ConditionalPut<Schema extends ZodObject>
+export class ConditionalPut<Schema extends ObjectLikeZodType>
   implements BaseCommand<ConditionalPutResult<Schema>, Schema>, WriteTransactable<Schema>
 {
   #config: ConditionalPutConfig<Schema>
@@ -80,7 +79,7 @@ export class ConditionalPut<Schema extends ZodObject>
       : await entity.schema.encodeAsync(this.#config.item)
 
     return {
-      ...encodedData,
+      ...(encodedData as Record<string, unknown>),
       ...entity.buildAllKeys(this.#config.item),
     }
   }

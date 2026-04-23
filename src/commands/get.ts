@@ -1,15 +1,14 @@
 import { GetCommand } from '@aws-sdk/lib-dynamodb'
 import type { DynamoEntity } from '@/core/entity'
 import type { BaseConfig, BaseCommand, BaseResult } from '@/commands'
-import type { ZodObject } from 'zod/v4'
-import type { EntitySchema } from '@/core'
+import type { EntitySchema, ObjectLikeZodType } from '@/core'
 
 /**
  * Configuration for the Get command.
  *
  * @template Schema - The Zod schema defining the structure of the entity.
  */
-export type GetConfig<Schema extends ZodObject> = BaseConfig & {
+export type GetConfig<Schema extends ObjectLikeZodType> = BaseConfig & {
   key: Partial<EntitySchema<Schema>>
   consistent?: boolean
 }
@@ -19,7 +18,7 @@ export type GetConfig<Schema extends ZodObject> = BaseConfig & {
  *
  * @template Schema - The Zod schema defining the structure of the entity.
  */
-export type GetResult<Schema extends ZodObject> = BaseResult & {
+export type GetResult<Schema extends ObjectLikeZodType> = BaseResult & {
   item: EntitySchema<Schema> | undefined
 }
 
@@ -56,7 +55,9 @@ export type GetResult<Schema extends ZodObject> = BaseResult & {
  * const { item } = await userEntity.send(getCommand);
  * ```
  */
-export class Get<Schema extends ZodObject> implements BaseCommand<GetResult<Schema>, Schema> {
+export class Get<Schema extends ObjectLikeZodType>
+  implements BaseCommand<GetResult<Schema>, Schema>
+{
   #config: GetConfig<Schema>
 
   constructor(config: GetConfig<Schema>) {

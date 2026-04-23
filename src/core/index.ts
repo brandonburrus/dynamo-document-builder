@@ -2,8 +2,30 @@ export * from './entity'
 export * from './key'
 export * from './table'
 
-import type { output as ZodOutput, input as ZodInput, ZodObject } from 'zod/v4'
+import type { output as ZodOutput, input as ZodInput, ZodType } from 'zod/v4'
 import type { DynamoEntity } from '@/core/entity'
+
+/**
+ * Constrains a Zod schema to types whose output is an object (record of key-value pairs).
+ *
+ * This is broader than `ZodObject` — it also accepts discriminated unions,
+ * unions of objects, intersections, and other Zod types that produce object outputs.
+ */
+export type ObjectLikeZodType = ZodType<Record<string, unknown>>
+
+/**
+ * Parses a partial object from a schema, calling `.partial()` when available (ZodObject)
+ * and falling back to `.parseAsync()` for other object-like schemas.
+ */
+export async function parsePartial<Schema extends ObjectLikeZodType>(
+  schema: Schema,
+  data: unknown,
+): Promise<Partial<EntitySchema<Schema>>> {
+  if ('partial' in schema && typeof schema.partial === 'function') {
+    return (await schema.partial().parseAsync(data)) as Partial<EntitySchema<Schema>>
+  }
+  return (await schema.parseAsync(data)) as Partial<EntitySchema<Schema>>
+}
 import type {
   ConditionCheck,
   Delete,
@@ -18,14 +40,14 @@ import type { NativeAttributeValue } from '@aws-sdk/lib-dynamodb'
  *
  * To get the schema type from an entity use [`Entity<E>`](/api-reference/type-aliases/entity) instead.
  */
-export type EntitySchema<Schema extends ZodObject> = ZodOutput<Schema>
+export type EntitySchema<Schema extends ObjectLikeZodType> = ZodOutput<Schema>
 
 /**
  * Utility type used to derive the input type from the Zod schema definition. Mainly for internal use.
  *
  * To get the input schema type from an entity use [`EncodedEntity<E>`](/api-reference/type-aliases/encodedentity) instead.
  */
-export type EncodedEntitySchema<Schema extends ZodObject> = ZodInput<Schema>
+export type EncodedEntitySchema<Schema extends ObjectLikeZodType> = ZodInput<Schema>
 
 /**
  * Utility type to derive the type of a DynamoEntity's schema.

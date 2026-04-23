@@ -1,8 +1,7 @@
 import type { DynamoEntity } from '@/core/entity'
-import type { EntitySchema } from '@/core'
+import type { EntitySchema, ObjectLikeZodType } from '@/core'
 import type { GetConfig } from '@/commands/get'
 import type { Projection } from '@/projections'
-import type { ZodObject } from 'zod/v4'
 import { GetCommand } from '@aws-sdk/lib-dynamodb'
 import { parseProjection } from '@/projections/projection-parser'
 import type { BaseResult, BaseCommand } from '@/commands'
@@ -14,8 +13,8 @@ import type { BaseResult, BaseCommand } from '@/commands'
  * @template ProjectionSchema - The Zod schema defining the structure of the projected attributes.
  */
 export type ProjectedGetConfig<
-  Schema extends ZodObject,
-  ProjectionSchema extends ZodObject,
+  Schema extends ObjectLikeZodType,
+  ProjectionSchema extends ObjectLikeZodType,
 > = GetConfig<Schema> & {
   projection: Projection
   projectionSchema: ProjectionSchema
@@ -26,7 +25,7 @@ export type ProjectedGetConfig<
  *
  * @template ProjectionSchema - The Zod schema defining the structure of the projected attributes.
  */
-export type ProjectedGetResult<ProjectionSchema extends ZodObject> = BaseResult & {
+export type ProjectedGetResult<ProjectionSchema extends ObjectLikeZodType> = BaseResult & {
   item: EntitySchema<ProjectionSchema> | undefined
 }
 
@@ -70,8 +69,10 @@ export type ProjectedGetResult<ProjectionSchema extends ZodObject> = BaseResult 
  * const { item } = await userEntity.send(projectedGetCommand);
  * ```
  */
-export class ProjectedGet<Schema extends ZodObject, ProjectionSchema extends ZodObject>
-  implements BaseCommand<ProjectedGetResult<ProjectionSchema>, Schema>
+export class ProjectedGet<
+  Schema extends ObjectLikeZodType,
+  ProjectionSchema extends ObjectLikeZodType,
+> implements BaseCommand<ProjectedGetResult<ProjectionSchema>, Schema>
 {
   #config: ProjectedGetConfig<Schema, ProjectionSchema>
 

@@ -1,11 +1,11 @@
 import type { DynamoEntity } from '@/core/entity'
-import type { EntitySchema, TransactWriteOperation } from '@/core'
+import type { EntitySchema, TransactWriteOperation, ObjectLikeZodType } from '@/core'
+import { parsePartial } from '@/core'
 import type {
   ItemCollectionMetrics,
   ReturnItemCollectionMetrics,
   ReturnValue,
 } from '@aws-sdk/client-dynamodb'
-import type { ZodObject } from 'zod/v4'
 import { DeleteCommand } from '@aws-sdk/lib-dynamodb'
 import type { BaseConfig, BaseCommand, BaseResult, WriteTransactable } from '@/commands'
 
@@ -14,7 +14,7 @@ import type { BaseConfig, BaseCommand, BaseResult, WriteTransactable } from '@/c
  *
  * @template Schema - The Zod schema defining the structure of the entity.
  */
-export type DeleteConfig<Schema extends ZodObject> = BaseConfig & {
+export type DeleteConfig<Schema extends ObjectLikeZodType> = BaseConfig & {
   key: Partial<EntitySchema<Schema>>
   returnValues?: ReturnValue
   returnItemCollectionMetrics?: ReturnItemCollectionMetrics
@@ -25,7 +25,7 @@ export type DeleteConfig<Schema extends ZodObject> = BaseConfig & {
  *
  * @template Schema - The Zod schema defining the structure of the entity.
  */
-export type DeleteResult<Schema extends ZodObject> = BaseResult & {
+export type DeleteResult<Schema extends ObjectLikeZodType> = BaseResult & {
   deletedItem?: Partial<EntitySchema<Schema>> | undefined
   itemCollectionMetrics?: ItemCollectionMetrics
 }
@@ -62,7 +62,7 @@ export type DeleteResult<Schema extends ZodObject> = BaseResult & {
  * const { deletedItem } = await userEntity.send(deleteCommand);
  * ```
  */
-export class Delete<Schema extends ZodObject>
+export class Delete<Schema extends ObjectLikeZodType>
   implements BaseCommand<DeleteResult<Schema>, Schema>, WriteTransactable<Schema>
 {
   #config: DeleteConfig<Schema>
@@ -90,9 +90,7 @@ export class Delete<Schema extends ZodObject>
       if (this.#config.skipValidation) {
         deletedItem = deleteResult.Attributes as Partial<EntitySchema<Schema>>
       } else {
-        deletedItem = (await entity.schema
-          .partial()
-          .parseAsync(deleteResult.Attributes)) as Partial<EntitySchema<Schema>>
+        deletedItem = await parsePartial(entity.schema, deleteResult.Attributes)
       }
     }
 

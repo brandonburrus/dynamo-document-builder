@@ -1,8 +1,7 @@
 import type { BaseConfig, BaseCommand, BaseResult } from '@/commands'
 import type { DynamoEntity } from '@/core/entity'
-import type { EntitySchema } from '@/core'
+import type { EntitySchema, ObjectLikeZodType } from '@/core'
 import type { Projection } from '@/projections'
-import type { ZodObject } from 'zod/v4'
 import { BATCH_GET_VALIDATION_CONCURRENCY } from '@/internal-constants'
 import { BatchGetCommand } from '@aws-sdk/lib-dynamodb'
 import { parseProjection } from '@/projections/projection-parser'
@@ -15,8 +14,8 @@ import pMap from 'p-map'
  * @template ProjectionSchema - The Zod schema defining the structure of the projected attributes.
  */
 export type BatchProjectedGetConfig<
-  Schema extends ZodObject,
-  ProjectionSchema extends ZodObject,
+  Schema extends ObjectLikeZodType,
+  ProjectionSchema extends ObjectLikeZodType,
 > = BaseConfig & {
   keys: Array<Partial<EntitySchema<Schema>>>
   consistent?: boolean
@@ -29,7 +28,7 @@ export type BatchProjectedGetConfig<
  *
  * @template ProjectionSchema - The Zod schema defining the structure of the projected attributes.
  */
-export type BatchProjectedGetResult<ProjectionSchema extends ZodObject> = BaseResult & {
+export type BatchProjectedGetResult<ProjectionSchema extends ObjectLikeZodType> = BaseResult & {
   items: Array<EntitySchema<ProjectionSchema>>
   unprocessedKeys?: Array<Partial<EntitySchema<ProjectionSchema>>>
 }
@@ -76,8 +75,10 @@ export type BatchProjectedGetResult<ProjectionSchema extends ZodObject> = BaseRe
  * const { items } = await userEntity.send(batchProjectedGetCommand);
  * ```
  */
-export class BatchProjectedGet<Schema extends ZodObject, ProjectionSchema extends ZodObject>
-  implements BaseCommand<BatchProjectedGetResult<ProjectionSchema>, Schema>
+export class BatchProjectedGet<
+  Schema extends ObjectLikeZodType,
+  ProjectionSchema extends ObjectLikeZodType,
+> implements BaseCommand<BatchProjectedGetResult<ProjectionSchema>, Schema>
 {
   #config: BatchProjectedGetConfig<Schema, ProjectionSchema>
 
