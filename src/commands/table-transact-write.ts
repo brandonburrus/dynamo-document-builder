@@ -6,7 +6,7 @@ import type {
   ReturnItemCollectionMetrics,
 } from '@aws-sdk/client-dynamodb'
 import type { ResponseMetadata } from '@aws-sdk/types'
-import type { ZodObject } from 'zod/v4'
+import type { ObjectLikeZodType } from '@/core'
 import { DocumentBuilderError } from '@/errors'
 import { TransactWriteCommand } from '@aws-sdk/lib-dynamodb'
 import { TRANSACTION_WRITE_VALIDATION_CONCURRENCY } from '@/internal-constants'
@@ -73,7 +73,7 @@ export class TableTransactWrite implements TableCommand<TableTransactWriteResult
     const transactItems = (
       await pMap(
         this.#config.transactions,
-        ({ entity, writes }: PreparedWriteTransaction<ZodObject>) =>
+        ({ entity, writes }: PreparedWriteTransaction<ObjectLikeZodType>) =>
           pMap(writes, write => write.prepareWriteTransaction(entity), {
             concurrency: TRANSACTION_WRITE_VALIDATION_CONCURRENCY,
             signal: this.#config.abortController?.signal,

@@ -1,8 +1,7 @@
 import { TransactGetCommand } from '@aws-sdk/lib-dynamodb'
 import type { DynamoEntity } from '@/core/entity'
 import type { BaseConfig, BaseCommand, BaseResult, GetTransactable } from '@/commands'
-import type { ZodObject } from 'zod/v4'
-import type { EntitySchema } from '@/core'
+import type { EntitySchema, ObjectLikeZodType } from '@/core'
 import { TRANSACTION_GET_VALIDATION_CONCURRENCY } from '@/internal-constants'
 import pMap from 'p-map'
 
@@ -11,7 +10,7 @@ import pMap from 'p-map'
  *
  * @template Schema - The Zod schema defining the structure of the entity.
  */
-export type TransactGetConfig<Schema extends ZodObject> = BaseConfig & {
+export type TransactGetConfig<Schema extends ObjectLikeZodType> = BaseConfig & {
   keys: Array<Partial<EntitySchema<Schema>>>
 }
 
@@ -20,7 +19,7 @@ export type TransactGetConfig<Schema extends ZodObject> = BaseConfig & {
  *
  * @template Schema - The Zod schema defining the structure of the entity.
  */
-export type TransactGetResult<Schema extends ZodObject> = BaseResult & {
+export type TransactGetResult<Schema extends ObjectLikeZodType> = BaseResult & {
   items: Array<EntitySchema<Schema> | undefined>
 }
 
@@ -59,7 +58,7 @@ export type TransactGetResult<Schema extends ZodObject> = BaseResult & {
  * // items array has same order as keys, undefined if not found
  * ```
  */
-export class TransactGet<Schema extends ZodObject>
+export class TransactGet<Schema extends ObjectLikeZodType>
   implements BaseCommand<TransactGetResult<Schema>, Schema>, GetTransactable<Schema>
 {
   #config: TransactGetConfig<Schema>

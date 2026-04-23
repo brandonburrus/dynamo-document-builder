@@ -1,8 +1,7 @@
 import type { BaseConfig, BaseCommand, BaseResult, BatchWritePreparable } from '@/commands'
 import type { DynamoEntity } from '@/core/entity'
-import type { EntitySchema } from '@/core'
+import type { EntitySchema, ObjectLikeZodType } from '@/core'
 import type { ItemCollectionMetrics, ReturnItemCollectionMetrics } from '@aws-sdk/client-dynamodb'
-import type { ZodObject } from 'zod/v4'
 import { BATCH_WRITE_VALIDATION_CONCURRENCY } from '@/internal-constants'
 import { BatchWriteCommand } from '@aws-sdk/lib-dynamodb'
 import pMap from 'p-map'
@@ -12,7 +11,7 @@ import pMap from 'p-map'
  *
  * @template Schema - The Zod schema defining the structure of the entity.
  */
-export type BatchWriteConfig<Schema extends ZodObject> = BaseConfig & {
+export type BatchWriteConfig<Schema extends ObjectLikeZodType> = BaseConfig & {
   items?: Array<EntitySchema<Schema>>
   deletes?: Array<Partial<EntitySchema<Schema>>>
   returnItemCollectionMetrics?: ReturnItemCollectionMetrics
@@ -23,7 +22,7 @@ export type BatchWriteConfig<Schema extends ZodObject> = BaseConfig & {
  *
  * @template Schema - The Zod schema defining the structure of the entity.
  */
-export type BatchWriteResult<Schema extends ZodObject> = BaseResult & {
+export type BatchWriteResult<Schema extends ObjectLikeZodType> = BaseResult & {
   unprocessedPuts?: Array<EntitySchema<Schema>>
   unprocessedDeletes?: Array<Partial<EntitySchema<Schema>>>
   itemColectionMetrics?: ItemCollectionMetrics
@@ -67,7 +66,7 @@ export type BatchWriteResult<Schema extends ZodObject> = BaseResult & {
  * const { unprocessedPuts, unprocessedDeletes } = await todoEntity.send(batchWriteCommand);
  * ```
  */
-export class BatchWrite<Schema extends ZodObject>
+export class BatchWrite<Schema extends ObjectLikeZodType>
   implements BaseCommand<BatchWriteResult<Schema>, Schema>, BatchWritePreparable<Schema>
 {
   #config: BatchWriteConfig<Schema>
@@ -105,7 +104,7 @@ export class BatchWrite<Schema extends ZodObject>
         return {
           PutRequest: {
             Item: {
-              ...encodedData,
+              ...(encodedData as Record<string, unknown>),
               ...entity.buildAllKeys(item),
             },
           },

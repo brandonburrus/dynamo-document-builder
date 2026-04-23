@@ -1,12 +1,12 @@
 import type { DynamoEntity } from '@/core/entity'
-import type { EntitySchema, TransactWriteOperation } from '@/core'
+import type { EntitySchema, TransactWriteOperation, ObjectLikeZodType } from '@/core'
+import { parsePartial } from '@/core'
 import type {
   ItemCollectionMetrics,
   ReturnItemCollectionMetrics,
   ReturnValue,
 } from '@aws-sdk/client-dynamodb'
 import type { UpdateValues } from '@/updates'
-import type { ZodObject } from 'zod/v4'
 import { UpdateCommand } from '@aws-sdk/lib-dynamodb'
 import { parseUpdate } from '@/updates/update-parser'
 import type { BaseConfig, BaseCommand, BaseResult, WriteTransactable } from '@/commands'
@@ -16,7 +16,7 @@ import type { BaseConfig, BaseCommand, BaseResult, WriteTransactable } from '@/c
  *
  * @template Schema - The Zod schema defining the structure of the entity.
  */
-export type UpdateConfig<Schema extends ZodObject> = BaseConfig & {
+export type UpdateConfig<Schema extends ObjectLikeZodType> = BaseConfig & {
   key: Partial<EntitySchema<Schema>>
   update: UpdateValues
   returnValues?: ReturnValue
@@ -28,7 +28,7 @@ export type UpdateConfig<Schema extends ZodObject> = BaseConfig & {
  *
  * @template Schema - The Zod schema defining the structure of the entity.
  */
-export type UpdateResult<Schema extends ZodObject> = BaseResult & {
+export type UpdateResult<Schema extends ObjectLikeZodType> = BaseResult & {
   updatedItem?: Partial<EntitySchema<Schema>> | undefined
   itemCollectionMetrics?: ItemCollectionMetrics
 }
@@ -70,7 +70,7 @@ export type UpdateResult<Schema extends ZodObject> = BaseResult & {
  * const { updatedItem } = await userEntity.send(updateCommand);
  * ```
  */
-export class Update<Schema extends ZodObject>
+export class Update<Schema extends ObjectLikeZodType>
   implements BaseCommand<UpdateResult<Schema>, Schema>, WriteTransactable<Schema>
 {
   #config: UpdateConfig<Schema>
@@ -102,9 +102,7 @@ export class Update<Schema extends ZodObject>
       if (this.#config.skipValidation) {
         updatedItem = updateResult.Attributes as Partial<EntitySchema<Schema>>
       } else {
-        updatedItem = (await entity.schema
-          .partial()
-          .parseAsync(updateResult.Attributes)) as Partial<EntitySchema<Schema>>
+        updatedItem = await parsePartial(entity.schema, updateResult.Attributes)
       }
     }
 

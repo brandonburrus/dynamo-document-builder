@@ -1,9 +1,8 @@
 import type { Condition } from '@/conditions'
 import type { DynamoEntity } from '@/core/entity'
-import type { EntitySchema, TransactWriteOperation } from '@/core'
+import type { EntitySchema, TransactWriteOperation, ObjectLikeZodType } from '@/core'
 import type { ReturnValuesOnConditionCheckFailure } from '@aws-sdk/client-dynamodb'
 import type { WriteTransactable } from '@/commands'
-import type { ZodObject } from 'zod/v4'
 import { parseCondition } from '@/conditions/condition-parser'
 
 /**
@@ -11,7 +10,7 @@ import { parseCondition } from '@/conditions/condition-parser'
  *
  * @template Schema - The Zod schema defining the structure of the entity.
  */
-export type ConditionCheckConfig<Schema extends ZodObject> = {
+export type ConditionCheckConfig<Schema extends ObjectLikeZodType> = {
   key: Partial<EntitySchema<Schema>>
   condition: Condition
   returnValuesOnConditionCheckFailure?: ReturnValuesOnConditionCheckFailure
@@ -54,7 +53,7 @@ export type ConditionCheckConfig<Schema extends ZodObject> = {
  * await userEntity.send(transactWriteCommand);
  * ```
  */
-export class ConditionCheck<Schema extends ZodObject> implements WriteTransactable<Schema> {
+export class ConditionCheck<Schema extends ObjectLikeZodType> implements WriteTransactable<Schema> {
   #config: ConditionCheckConfig<Schema>
 
   constructor(config: ConditionCheckConfig<Schema>) {

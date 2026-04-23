@@ -19,8 +19,7 @@ import type {
   DynamoIndexKey,
 } from '@/core/key'
 import type { DynamoTable } from '@/core/table'
-import type { ZodObject } from 'zod/v4'
-import type { EntitySchema, IndexName } from '@/core'
+import type { EntitySchema, IndexName, ObjectLikeZodType } from '@/core'
 import { DocumentBuilderError } from '@/errors'
 
 /**
@@ -35,7 +34,7 @@ import { DocumentBuilderError } from '@/errors'
  * @property globalSecondaryIndexes - Mapping of global secondary index names to their key builders.
  * @property localSecondaryIndexes - Mapping of local secondary index names to their key builders.
  */
-export type DynamoEntityConfig<Schema extends ZodObject> = {
+export type DynamoEntityConfig<Schema extends ObjectLikeZodType> = {
   table: DynamoTable
   schema: Schema
   partitionKey?: DynamoKeyBuilder<EntitySchema<Schema>>
@@ -65,7 +64,7 @@ export type EntityKeyInput<Item> =
  *
  * @template Schema - The Zod schema representing the entity's structure.
  */
-export class DynamoEntity<Schema extends ZodObject> {
+export class DynamoEntity<Schema extends ObjectLikeZodType> {
   #table: DynamoTable
   #schema: Schema
 
@@ -349,7 +348,7 @@ export class DynamoEntity<Schema extends ZodObject> {
                 putRequests.push({
                   PutRequest: {
                     Item: {
-                      ...encodedData,
+                      ...(encodedData as Record<string, unknown>),
                       ...this.buildAllKeys(item),
                     },
                   },

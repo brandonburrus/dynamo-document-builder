@@ -1,18 +1,17 @@
-import type { TransactWriteOperation } from '@/core'
+import type { TransactWriteOperation, ObjectLikeZodType } from '@/core'
 import type { DynamoEntity } from '@/core/entity'
 import type { DynamoTable } from '@/core/table'
 import type { EntitySchema } from '@/core'
 import type { DynamoKey } from '@/core/key'
 import type { ConsumedCapacity, ReturnConsumedCapacity } from '@aws-sdk/client-dynamodb'
 import type { ResponseMetadata } from '@aws-sdk/types'
-import type { ZodObject } from 'zod/v4'
 
 /**
  * Interface for commands that can be prepared for use in a table-level batch write.
  *
  * @template Schema The Zod schema type associated with the DynamoEntity.
  */
-export type BatchWritePreparable<Schema extends ZodObject> = {
+export type BatchWritePreparable<Schema extends ObjectLikeZodType> = {
   readonly items?: Array<EntitySchema<Schema>>
   readonly deletes?: Array<Partial<EntitySchema<Schema>>>
 }
@@ -22,7 +21,7 @@ export type BatchWritePreparable<Schema extends ZodObject> = {
  *
  * @template Schema The Zod schema type associated with the DynamoEntity.
  */
-export type BatchGetPreparable<Schema extends ZodObject> = {
+export type BatchGetPreparable<Schema extends ObjectLikeZodType> = {
   readonly keys: Array<Partial<EntitySchema<Schema>>>
   readonly consistent?: boolean
 }
@@ -35,7 +34,7 @@ export type BatchGetPreparable<Schema extends ZodObject> = {
  * @template Output The output type of the command's execute method.
  * @template Schema The Zod schema type associated with the DynamoEntity.
  */
-export type BaseCommand<Output, Schema extends ZodObject> = {
+export type BaseCommand<Output, Schema extends ObjectLikeZodType> = {
   execute(entity: DynamoEntity<Schema>): Promise<Output>
 }
 
@@ -47,7 +46,7 @@ export type BaseCommand<Output, Schema extends ZodObject> = {
  * @template Output The output type of the command's executePaginated method.
  * @template Schema The Zod schema type associated with the DynamoEntity.
  */
-export type BasePaginatable<Output, Schema extends ZodObject> = {
+export type BasePaginatable<Output, Schema extends ObjectLikeZodType> = {
   executePaginated(entity: DynamoEntity<Schema>): AsyncGenerator<Output, void, unknown>
 }
 
@@ -56,7 +55,7 @@ export type BasePaginatable<Output, Schema extends ZodObject> = {
  *
  * @template Schema The Zod schema type associated with the DynamoEntity.
  */
-export type GetTransactable<Schema extends ZodObject> = {
+export type GetTransactable<Schema extends ObjectLikeZodType> = {
   readonly keys: Array<Partial<EntitySchema<Schema>>>
 }
 
@@ -65,7 +64,7 @@ export type GetTransactable<Schema extends ZodObject> = {
  *
  * @template Schema The Zod schema type associated with the DynamoEntity.
  */
-export type WriteTransactable<Schema extends ZodObject> = {
+export type WriteTransactable<Schema extends ObjectLikeZodType> = {
   prepareWriteTransaction(entity: DynamoEntity<Schema>): Promise<TransactWriteOperation>
 }
 
@@ -84,7 +83,7 @@ export type TableCommand<Output> = {
  *
  * @template Schema The Zod schema type associated with the DynamoEntity.
  */
-export type PreparedWriteTransaction<Schema extends ZodObject> = {
+export type PreparedWriteTransaction<Schema extends ObjectLikeZodType> = {
   entity: DynamoEntity<Schema>
   writes: WriteTransactable<Schema>[]
 }
@@ -95,7 +94,7 @@ export type PreparedWriteTransaction<Schema extends ZodObject> = {
  *
  * @template Schema The Zod schema type associated with the DynamoEntity.
  */
-export type PreparedGetTransaction<Schema extends ZodObject> = {
+export type PreparedGetTransaction<Schema extends ObjectLikeZodType> = {
   entity: DynamoEntity<Schema>
   keys: Array<{ TableName: string; Key: DynamoKey }>
   parseResults(
@@ -110,7 +109,7 @@ export type PreparedGetTransaction<Schema extends ZodObject> = {
  *
  * @template Schema The Zod schema type associated with the DynamoEntity.
  */
-export type PreparedBatchWrite<Schema extends ZodObject> = {
+export type PreparedBatchWrite<Schema extends ObjectLikeZodType> = {
   entity: DynamoEntity<Schema>
   buildRequests(
     skipValidation: boolean,
@@ -128,7 +127,7 @@ export type PreparedBatchWrite<Schema extends ZodObject> = {
  *
  * @template Schema The Zod schema type associated with the DynamoEntity.
  */
-export type PreparedBatchGet<Schema extends ZodObject> = {
+export type PreparedBatchGet<Schema extends ObjectLikeZodType> = {
   entity: DynamoEntity<Schema>
   keys: Array<DynamoKey>
   consistent: boolean

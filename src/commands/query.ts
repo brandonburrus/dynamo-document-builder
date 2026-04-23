@@ -1,8 +1,7 @@
 import type { Condition } from '@/conditions'
 import type { DynamoEntity, EntityKeyInput } from '@/core/entity'
-import type { EntitySchema } from '@/core'
+import type { EntitySchema, ObjectLikeZodType } from '@/core'
 import type { Select } from '@aws-sdk/client-dynamodb'
-import type { ZodObject } from 'zod/v4'
 import type { BaseConfig, BaseCommand, BasePaginatable, BaseResult } from '@/commands'
 import { AttributeExpressionMap } from '@/attributes/attribute-map'
 import { QUERY_VALIDATION_CONCURRENCY } from '@/internal-constants'
@@ -22,7 +21,7 @@ import pMap from 'p-map'
  *
  * @template Schema - The Zod schema defining the structure of the entity.
  */
-export type QueryConfig<Schema extends ZodObject> = BaseConfig &
+export type QueryConfig<Schema extends ObjectLikeZodType> = BaseConfig &
   EntityKeyInput<EntitySchema<Schema>> & {
     sortKeyCondition?: Condition
     filter?: Condition
@@ -40,7 +39,7 @@ export type QueryConfig<Schema extends ZodObject> = BaseConfig &
  *
  * @template Schema - The Zod schema defining the structure of the entity.
  */
-export type QueryResult<Schema extends ZodObject> = BaseResult & {
+export type QueryResult<Schema extends ObjectLikeZodType> = BaseResult & {
   items: EntitySchema<Schema>[]
   count: number
   scannedCount: number
@@ -82,7 +81,7 @@ export type QueryResult<Schema extends ZodObject> = BaseResult & {
  * const { items, count } = await todoEntity.send(queryCommand);
  * ```
  */
-export class Query<Schema extends ZodObject>
+export class Query<Schema extends ObjectLikeZodType>
   implements BaseCommand<QueryResult<Schema>, Schema>, BasePaginatable<QueryResult<Schema>, Schema>
 {
   #config: QueryConfig<Schema>
